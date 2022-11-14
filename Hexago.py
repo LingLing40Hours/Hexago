@@ -4,38 +4,97 @@ from PIL import Image, ImageDraw
 import math
 import copy
 
+#variation 1 - anchor not in [coordinate, neighbor]
+#variation 2 - anchor not collinear with coordinate, neighbor
 
-def initBoard(sHexagon, sSquare):
-    im = Image.new(mode='RGBA', size=(sSquare,sSquare));
-    vertexCoords = polygonCoords(6,sSquare/2,sSquare/2,sHexagon);
-    drawPolygon(im, vertexCoords, 1);
+
+def initBoard(polygon, width, height):
+    im = Image.new(mode='RGBA', size=(width, height));
+    #vertexCoords = polygonCoordsCounterclockwise(6,sSquare/2,sSquare/2,sHexagon); #hexagon
+    drawPolygon(im, polygon, 1);
     return im;
 
 #enclosed regions are autofilled
-def optimalMove(vertexCoords):
+def makeOptimalMove(vertexCoords):
+    maxArea = area(vertexCoords);
+    ans = [];
     for coordinateIndex in range(len(vertexCoords)):
+        print("C:", coordinateIndex);
         coordinate = vertexCoords[coordinateIndex];
         for neighborOffset in range(-1, 2, 2):
             neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
+            print("  N:", neighborIndex);
             neighbor = vertexCoords[neighborIndex];
-            v = coordinate-neighbor;
+            v = vector(neighbor, coordinate);
             mv = normalized(v);
-            extendinate = coordinate+v;
+            extendinate = summed(coordinate, mv);
             for anchorIndex in range(len(vertexCoords)):
                 if anchorIndex!=coordinateIndex and anchorIndex!=neighborIndex:
-                    target = 2*coordinate+mv-anchor;
-                    #target inside polygon
-                    #target outside polygon
+                    print("    A:", anchorIndex);
+                    anchor = vertexCoords[anchorIndex];
+                    target = vector(anchor, summed(summed(coordinate, coordinate), mv));
+                    parallelogram = [];
+                    if isClockwise(coordinate, extendinate, anchor):
+                        parallelogram = [anchor, extendinate, target, coordinate];
+                    else:
+                        parallelogram = [anchor, coordinate, target, extendinate];
+                    newVertexCoords = reduced(merged(vertexCoords, parallelogram));
+                    nArea = area(newVertexCoords);
+                    if nArea > maxArea:
+                        ans = newVertexCoords;
+                        maxArea = nArea;
+    vertexCoords[:] = ans;
+
+def optimalMove(vertexCoords):
+    maxArea = area(vertexCoords);
+    ans = [(0,0),(0,0),(0,0)];
+    for coordinateIndex in range(len(vertexCoords)):
+        coordinate = vertexCoords[coordinateIndex];
+        for neighborOffset in [-1, 1]:
+            neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
+            neighbor = vertexCoords[neighborIndex];
+            v = vector(neighbor, coordinate);
+            mv = normalized(v);
+            extendinate = summed(coordinate, mv);
+            for anchorIndex in range(len(vertexCoords)):
+                if not anchorIndex in [coordinateIndex, neighborIndex]:
+                    anchor = vertexCoords[anchorIndex];
+                    target = vector(anchor, summed(summed(coordinate, coordinate), mv));
+                    parallelogram = [];
+                    if isClockwise(coordinate, extendinate, anchor):
+                        parallelogram = [anchor, extendinate, target, coordinate];
+                    else:
+                        parallelogram = [anchor, coordinate, target, extendinate];
+                    newVertexCoords = reduced(merged(vertexCoords, parallelogram));
+                    nArea = area(newVertexCoords);
+                    if nArea > maxArea:
+                        ans = [coordinate, extendinate, anchor];
+                        maxArea = nArea;
+    return ans;
+    
                     
 def drawMove(C, E, A, vertexCoords, im):
     return;
 
-def intersection(a1, a2, b1, b2):
+def drawOptimalMoves(polygon, depth, scale, width, height):
+    im = initBoard(scaled(polygon, scale), width, height);
+    im.show();
+    for i in range(depth):
+        makeOptimalMove(polygon);
+        drawPolygon(im, scaled(polygon, scale), 1);
+        im.show();
+
+def intersection(a1, a2, b1, b2): #if parallel, return intersection closest to a1
     if parallel(vector(a1,a2), vector(b1,b2)):
-        if normalizedv(a1,b1)==normalizedv(a1,a2) and magnitudev(a1,b1)<=magnitudev(a1,a2): #b1 between a1, a2 inclusive
-            return b1;
-        if normalizedv(a1,b2)==normalizedv(a1,a2) and magnitudev(a1,b2)<=magnitudev(a1,a2): #b2 between a1, a2 inclusive
-            return b2;
+        if b1==a1 or b1==a2 or (a1!=a2 and normalizedv(a1,b1)==normalizedv(a1,a2)):
+            if magnitudev(a1,b1)<=magnitudev(a1,a2): #b1 between a1, a2 inclusive
+                return b1;
+        if b2==a1 or b2==a2 or (a1!=a2 and normalizedv(a1,b2)==normalizedv(a1,a2)):
+            if magnitudev(a1,b2)<=magnitudev(a1,a2): #b2 between a1, a2 inclusive
+                return b2;
+        if a1==b1 or a1==b2 or (b1!=b2 and normalizedv(b1,a1)==normalizedv(b1,b2)):
+            if magnitudev(b1,a1)<=magnitudev(b1,b2): #a1 between b1, b2 inclusive
+                return a1;
         return (None, None);
     else: #Ax+By+C=0, Dx+Ey+F=0
         A = a1[1]-a2[1];
@@ -57,14 +116,77 @@ def intersection(a1, a2, b1, b2):
         else:
             y = -A/B*x-C/B;
         return (x, y);
-        
+
+def intersectionApprox(a1, a2, b1, b2):
+    if parallelApprox(vector(a1,a2), vector(b1,b2)):
+        if areEqualApprox(b1,a1) or areEqualApprox(b1,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b1),normalizedv(a1,a2))):
+            if magnitudev(a1,b1)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b1),magnitudev(a1,a2)): #b1 between a1, a2 inclusive
+                return b1;
+        if areEqualApprox(b2,a1) or areEqualApprox(b2,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b2),normalizedv(a1,a2))):
+            if magnitudev(a1,b2)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b2),magnitudev(a1,a2)): #b2 between a1, a2 inclusive
+                return b2;
+        if areEqualApprox(a1,b1) or areEqualApprox(a1,b2) or (b1!=b2 and areEqualApprox(normalizedv(b1,a1),normalizedv(b1,b2))):
+            if magnitudev(b1,a1)<magnitudev(b1,b2) or math.isclose(magnitudev(b1,a1),magnitudev(b1,b2)): #a1 between b1, b2 inclusive
+                return a1;
+        return (None, None);
+    else: #Ax+By+C=0, Dx+Ey+F=0
+        A = a1[1]-a2[1];
+        B = a2[0]-a1[0];
+        C = -B*a1[1]-A*a1[0];
+        D = b1[1]-b2[1];
+        E = b2[0]-b1[0];
+        F = -E*b1[1]-D*b1[0];
+        x=0;
+        y=0;
+        if B==0:
+            x = -C/A;
+        elif E==0:
+            x = -F/D;
+        else:
+            x = (F/E-C/B)/(A/B-D/E);
+        if B==0:
+            y = -D/E*x-F/E;
+        else:
+            y = -A/B*x-C/B;
+        return (x, y);
 
 def intersect(a1, a2, b1, b2):
     if parallel(vector(a1,a2), vector(b1,b2)):
-        if normalizedv(a1,b1)==normalizedv(a1,a2) and magnitudev(a1,b1)<=magnitudev(a1,a2): #b1 between a1, a2 inclusive
-            return True;
-        if normalizedv(a1,b2)==normalizedv(a1,a2) and magnitudev(a1,b2)<=magnitudev(a1,a2): #b2 between a1, a2 inclusive
-            return True;
+        if b1==a1 or b1==a2 or (a1!=a2 and normalizedv(a1,b1)==normalizedv(a1,a2)):
+            if magnitudev(a1,b1)<=magnitudev(a1,a2): #b1 between a1, a2 inclusive
+                return True;
+        if b2==a1 or b2==a2 or (a1!=a2 and normalizedv(a1,b2)==normalizedv(a1,a2)):
+            if magnitudev(a1,b2)<=magnitudev(a1,a2): #b2 between a1, a2 inclusive
+                return True;
+        if a1==b1 or a1==b2 or (b1!=b2 and normalizedv(b1,a1)==normalizedv(b1,b2)):
+            if magnitudev(b1,a1)<=magnitudev(b1,b2): #a1 between b1, b2 inclusive
+                return True;
+        return False;
+    cha1a2b1 = chirality(a1,a2,b1);
+    cha1a2b2 = chirality(a1,a2,b2);
+    cha2a1b1 = chirality(a2,a1,b1);
+    cha2a1b2 = chirality(a2,a1,b2);
+    chb1b2a1 = chirality(b1,b2,a1);
+    chb1b2a2 = chirality(b1,b2,a2);
+    chb2b1a1 = chirality(b2,b1,a1);
+    chb2b1a2 = chirality(b2,b1,a2);
+    if cha1a2b1!=-1 and cha1a2b2!=1 and chb1b2a2!=-1 and chb1b2a1!=1:
+        return True;
+    if cha1a2b2!=-1 and cha1a2b1!=1 and chb1b2a1!=-1 and chb1b2a2!=1:
+        return True;
+    return False;
+
+def intersectApprox(a1, a2, b1, b2):
+    if parallelApprox(vector(a1,a2), vector(b1,b2)):
+        if areEqualApprox(b1,a1) or areEqualApprox(b1,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b1),normalizedv(a1,a2))):
+            if magnitudev(a1,b1)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b1),magnitudev(a1,a2)): #b1 between a1, a2 inclusive
+                return True;
+        if areEqualApprox(b2,a1) or areEqualApprox(b2,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b2),normalizedv(a1,a2))):
+            if magnitudev(a1,b2)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b2),magnitudev(a1,a2)): #b2 between a1, a2 inclusive
+                return True;
+        if areEqualApprox(a1,b1) or areEqualApprox(a1,b2) or (b1!=b2 and areEqualApprox(normalizedv(b1,a1),normalizedv(b1,b2))):
+            if magnitudev(b1,a1)<magnitudev(b1,b2) or math.isclose(magnitudev(b1,a1),magnitudev(b1,b2)): #a1 between b1, b2 inclusive
+                return True;
         return False;
     cha1a2b1 = chirality(a1,a2,b1);
     cha1a2b2 = chirality(a1,a2,b2);
@@ -80,7 +202,116 @@ def intersect(a1, a2, b1, b2):
         return True;
     return False;
             
-        
+def intersectPolygon(polygon, a1, a2): #check if segment intersects any edge
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersect(vertex, vnext, a1, a2):
+            return True;
+    return False;
+
+def intersectPolygonIndex(polygon, a1, a2): #returns index of starting vertex of intersecting edge
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersect(vertex, vnext, a1, a2):
+            return i;
+    return -1;
+
+def intersectPolygonIndexNearest(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to a1
+    ans = -1;
+    minDistance = distance(a1, a2);
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersect(vertex, vnext, a1, a2):
+            it = intersection(vertex, vnext, a1, a2);
+            d = distance(it, a1);
+            if d <= minDistance:
+                minDistance = d;
+                ans = i;
+    return ans;
+
+def intersectPolygonIndexNearestExclusive(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to but not intersecting a1
+    ans = -1;
+    minDistance = distance(a1, a2);
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersect(vertex, vnext, a1, a2):
+            it = intersection(vertex, vnext, a1, a2);
+            if it != a1:
+                d = distance(it, a1);
+                if d <= minDistance:
+                    minDistance = d;
+                    ans = i;
+    return ans;
+
+def intersectPolygonIndexNearestExclusiveApprox(polygon, a1, a2): #returns index of starting vertex of approximate intersecting edge closest to but not intersecting a1
+    ans = -1;
+    minDistance = distance(a1, a2);
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersectApprox(vertex, vnext, a1, a2):
+            it = intersection(vertex, vnext, a1, a2);
+            if not areEqualApprox(it, a1):
+                d = distance(it, a1);
+                if d <= minDistance:
+                    minDistance = d;
+                    ans = i;
+    return ans;
+
+def intersectPolygonIndexNearestExclusives(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to a1 but not intersecting a1 or a2
+    ans = -1;
+    minDistance = distance(a1, a2);
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersect(vertex, vnext, a1, a2):
+            it = intersection(vertex, vnext, a1, a2);
+            if it != a1 and it != a2:
+                d = distance(it, a1);
+                if d <= minDistance:
+                    minDistance = d;
+                    ans = i;
+    return ans;
+
+def intersectPolygonIndexNearestAcutest(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to and forming most acute angle with a1
+    ans = -1;
+    minDistance = distance(a1, a2);
+    minAngle = 2*math.pi;
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersect(vertex, vnext, a1, a2):
+            it = intersection(vertex, vnext, a1, a2);
+            d = distance(a1, it);
+            if d <= minDistance:
+                if d < minDistance: #closer intersection found, reset minimum angle
+                    minAngle = 2*math.pi;
+                ang = angle(summed(a1, vector(a2,a1)), it, vnext); #requires a0!=it, vnext!=it
+                if ang <= minAngle:
+                    minDistance = d;
+                    minAngle = ang;
+                    ans = i;
+    return ans;
+
+def angle(p1, p2, p3): #from p1 to p3, radians
+    a = distance(p1, p2);
+    b = distance(p3, p2);
+    c = distance(p1, p3);
+    cos = (a*a+b*b-c*c)/(2*a*b);
+    if math.isclose(cos, 1):
+        cos = 1;
+    elif math.isclose(cos, -1):
+        cos = -1;
+    ans = math.acos(cos);
+    if isCounterclockwise(p1, p2, p3):
+        return 2*math.pi-ans;
+    return ans;
+
+def longestSideLength(polygon):
+    ans = 0;
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        length = distance(vertex, vnext);
+        if length > ans:
+            ans = length;
+    return ans;
 
 def parallel(v1, v2):
     if v1==(0,0) or v2==(0,0):
@@ -88,6 +319,15 @@ def parallel(v1, v2):
     A = normalized(v1);
     B = normalized(v2);
     if A==B or A==(-B[0],-B[1]):
+        return True;
+    return False;
+
+def parallelApprox(v1, v2):
+    if areEqualApprox(v1,(0,0)) or areEqualApprox(v2,(0,0)):
+        return True;
+    A = normalized(v1);
+    B = normalized(v2);
+    if areEqualApprox(A, B) or areEqualApprox(A, (-B[0],-B[1])):
         return True;
     return False;
 
@@ -99,7 +339,7 @@ def collinear(A, B, C):
     return False;
             
     
-def polygonCoords(n, xCenter, yCenter, radius): #fix pixel offset ========
+def polygonCoordsClockwise(n, xCenter, yCenter, radius): #fix pixel offset ========
     dtheta = 2*math.pi/n;
     theta = -math.pi/2 - dtheta/2;
     answer = [];
@@ -108,7 +348,18 @@ def polygonCoords(n, xCenter, yCenter, radius): #fix pixel offset ========
         x = xCenter + radius*math.cos(theta);
         y = yCenter - radius*math.sin(theta);
         answer.append((x, y));
-        print(theta, answer[-1]);
+        #print(theta, answer[-1]);
+    return answer;
+
+def polygonCoordsCounterclockwise(n, xCenter, yCenter, radius):
+    dtheta = 2*math.pi/n;
+    theta = -math.pi/2 + dtheta*3/2;
+    answer = [];
+    for i in range(n):
+        theta -= dtheta;
+        x = xCenter + radius*math.cos(theta);
+        y = yCenter - radius*math.sin(theta);
+        answer.append((x, y));
     return answer;
 
 def drawPolygon(image, vertexCoords, thickness):
@@ -144,7 +395,7 @@ def normalizedv(a, b):
 def magnitudev(a, b):
     return magnitude(vector(a, b));
 
-def area(polygon):
+def area(polygon): #shoelace formula
     ans = 0;
     for i in range(len(polygon)):
         vertex = polygon[i];
@@ -155,26 +406,146 @@ def area(polygon):
     ans = abs(ans);
     return ans;
 
-def merged(polygon1, polygon2): #polygons valid and counterclockwise
+def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
+    #print(polygon1, polygon2);
+    #reduce polygons
+    p1 = reduced(polygon1);
+    p2 = reduced(polygon2);
+    
     #find an outer vertex as starting point
-    start = (0, 0);
-    startIndex = 0;
-    startPolygon = 0;
-    for i, vertex in enumerate(polygon1):
-        if not contains(polygon2, vertex):
-            start = vertex;
-            startIndex = i;
-            startPolygon = 1;
+    cIndex = -1;
+    nIndex = -1;
+    pVertex = (0, 0);
+    cVertex = (0, 0);
+    nVertex = (0, 0);
+    cPolygon = [];
+    oPolygon = [];
+    cPolygonIndex = 0;
+    
+    for i, vertex in enumerate(p1): #search polygon1
+        if not containsExclusive(p2, vertex):
+            cIndex = i;
+            cVertex = vertex;
+            pVertex = p1[i-1];
+            cPolygon = p1;
+            oPolygon = p2;
+            cPolygonIndex = 1;
             break;
-    if startPolygon==0: #polygon2 contains polygon1
-        for i, vertex in enumerate(polygon2):
-            if not contains(polygon1, vertex):
-                start = vertex;
-                startIndex = i;
-                startPolygon = 2;
-                break;
 
-    #walk around polygon while checking for intersection
+    if cPolygonIndex==0: #outer vertex not found in polygon1
+        for i, vertex in enumerate(p2): #search polygon2
+            if not containsExclusive(p1, vertex):
+                cIndex = i;
+                cVertex = vertex;
+                pVertex = p2[i-1];
+                cPolygon = p2;
+                oPolygon = p1;
+                cPolygonIndex = 2;
+                break;
+    
+    #walk around current polygon, switch polygon at intersection
+    ans = [cVertex];
+    
+    nIndex = (cIndex+1)%len(cPolygon);
+    nVertex = cPolygon[nIndex];
+    #print(ans[0]);
+
+    done = False;
+    while not done:
+        intersectIndexExclusive = intersectPolygonIndexNearestExclusiveApprox(oPolygon, cVertex, nVertex);
+        internextIndex = (intersectIndexExclusive+1)%len(oPolygon);
+        oIndex = findIndexApprox(oPolygon, cVertex);
+        log = "";
+        if oIndex != -1:
+            log = "at vertex";
+        elif intersectIndexExclusive==-1:
+            log = "continue polygon";
+        else:
+            log = "change polygon";
+        print(cVertex, cPolygon[0], log, oIndex, intersectIndexExclusive);
+        if oIndex != -1: #intersection at vertex
+            onIndex = (oIndex+1)%len(oPolygon);
+            onVertex = oPolygon[onIndex];
+            if angle(pVertex, cVertex, nVertex) > angle(pVertex, cVertex, onVertex): #change Polygon
+                if areEqualApprox(onVertex, ans[0]):
+                    break;
+                ans.append(onVertex);
+                cIndex = onIndex;
+                nIndex = (cIndex+1)%len(oPolygon);
+                pVertex = cVertex;
+                cVertex = oPolygon[cIndex];
+                nVertex = oPolygon[nIndex];
+                cPolygon, oPolygon = oPolygon, cPolygon;
+                cPolygonIndex = 1 if cPolygonIndex==2 else 1;
+            else: #continue on cPolygon
+                if areEqualApprox(nVertex, ans[0]):
+                    break;
+                ans.append(nVertex);
+                cIndex = nIndex;
+                nIndex = (cIndex+1)%len(cPolygon);
+                pVertex = cVertex;
+                cVertex = nVertex;
+                nVertex = cPolygon[nIndex];
+        elif intersectIndexExclusive == -1: #continue on cPolygon
+            if areEqualApprox(nVertex, ans[0]):
+                break;
+            ans.append(nVertex);
+            cIndex = nIndex;
+            nIndex = (cIndex+1)%len(cPolygon);
+            pVertex = cVertex;
+            cVertex = nVertex;
+            nVertex = cPolygon[nIndex];
+        else: #change polygon
+            nVertex = intersectionApprox(cVertex, nVertex, oPolygon[intersectIndexExclusive], oPolygon[internextIndex]);
+            if areEqualApprox(nVertex, ans[0]):
+                break;
+            ans.append(nVertex);
+            if areEqualApprox(nVertex, oPolygon[internextIndex]):
+                cIndex = internextIndex;
+                nIndex = (cIndex+1)%len(oPolygon);
+            else:
+                cIndex = intersectIndexExclusive;
+                nIndex = internextIndex;
+            pVertex = cVertex;
+            cVertex = nVertex;
+            nVertex = oPolygon[nIndex];
+            cPolygon, oPolygon = oPolygon, cPolygon;
+            cPolygonIndex = 1 if cPolygonIndex==2 else 1;
+    return ans;
+
+def reduced(polygon): #polygon valid (no self-intersections); combines collinear vertices, removes duplicate vertices
+    ans = [];
+    for i, cv in enumerate(polygon):
+        pv = polygon[i-1];
+        nv = polygon[(i+1)%len(polygon)];
+        if cv == pv:
+            continue;
+        if intersect(pv, nv, cv, cv):
+            continue;
+        ans.append(cv);
+    return ans;
+        
+def findIndex(array, value):
+    for i, v in enumerate(array):
+        if v==value:
+            return i;
+    return -1;
+
+def findIndexApprox(polygon, vertex):
+    for i, v in enumerate(polygon):
+        if areEqualApprox(v, vertex):
+            return i;
+    return -1;
+
+def areEqualApprox(v1, v2):
+    if math.isclose(v1[0], v2[0]) and math.isclose(v1[1], v2[1]):
+        return True;
+    return False;
+
+def swap(polygon1, polygon2): #doesn't work
+    temp = polygon1.copy();
+    polygon1 = polygon2.copy();
+    polygon2 = temp;
     
 
 def convexed(polygon): #vertices counterclockwise
@@ -323,4 +694,17 @@ def scaled(polygon, k):
     for i in range(len(ans)):
         x, y = ans[i];
         ans[i] = (k*x, k*y);
+    return ans;
+
+def distance(A, B):
+    return magnitude(vector(A, B));
+
+def summed(v1, v2):
+    return (v1[0]+v2[0], v1[1]+v2[1]);
+
+def perimeter(polygon):
+    ans = 0;
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        ans += distance(vertex, vnext);
     return ans;
