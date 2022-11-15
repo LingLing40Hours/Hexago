@@ -84,17 +84,63 @@ def drawOptimalMoves(polygon, depth, scale, width, height):
         drawPolygon(im, scaled(polygon, scale), 1);
         im.show();
 
+def betweenInclusiveSlower(A, B, C):
+    if not parallel(vector(A,B), vector(B,C)):
+        return False;
+    if B==A or B==C or (A!=C and normalizedv(A,B)==normalizedv(A,C)):
+        if magnitudev(A,B) <= magnitudev(A,C):
+            return True;
+    return False;
+
+def betweenInclusiveSlow(A, B, C):
+    if not collinear(A, B, C):
+        return False;
+    if B==A or B==C:
+        return True;
+    if A==C:
+        return False;
+    if normalizedv(A,B)==normalizedv(B,C):
+        return True;
+    return False;
+
+def betweenInclusive(A, B, C):
+    if not collinear(A, B, C):
+        return False;
+    if B[0] >= min(A[0], C[0]) and B[0] <= max(A[0], C[0]):
+        if B[1] >= min(A[1], C[1]) and B[1] <= max(A[1], C[1]):
+            return True;
+    return False;
+
+def betweenExclusive(A, B, C):
+    if not collinear(A, B, C):
+        return False;
+    if B[0] > min(A[0], C[0]) and B[0] < max(A[0], C[0]):
+        if B[1] > min(A[1], C[1]) and B[1] < max(A[1], C[1]):
+            return True;
+    return False;
+
+def betweenInclusiveApprox(A, B, C):
+    if not collinearApprox(A, B, C):
+        return False;
+    if areEqualApprox(B, A) or areEqualApprox(B, C):
+        return True;
+    if B[0] > min(A[0], C[0]) and B[0] < max(A[0], C[0]):
+        if B[1] > min(A[1], C[1]) and B[1] < max(A[1], C[1]):
+            return True;
+    return False;
+
 def intersection(a1, a2, b1, b2): #if parallel, return intersection closest to a1
     if parallel(vector(a1,a2), vector(b1,b2)):
-        if b1==a1 or b1==a2 or (a1!=a2 and normalizedv(a1,b1)==normalizedv(a1,a2)):
-            if magnitudev(a1,b1)<=magnitudev(a1,a2): #b1 between a1, a2 inclusive
-                return b1;
-        if b2==a1 or b2==a2 or (a1!=a2 and normalizedv(a1,b2)==normalizedv(a1,a2)):
-            if magnitudev(a1,b2)<=magnitudev(a1,a2): #b2 between a1, a2 inclusive
+        if betweenInclusive(b1, a1, b2):
+            return a1;
+        if betweenInclusive(a1, b1, a2):
+            if betweenInclusive(a1, b2, b1):
                 return b2;
-        if a1==b1 or a1==b2 or (b1!=b2 and normalizedv(b1,a1)==normalizedv(b1,b2)):
-            if magnitudev(b1,a1)<=magnitudev(b1,b2): #a1 between b1, b2 inclusive
-                return a1;
+            return b1;
+        if betweenInclusive(a1, b2, a2):
+            if betweenInclusive(a1, b1, b2):
+                return b1;
+            return b2;
         return (None, None);
     else: #Ax+By+C=0, Dx+Ey+F=0
         A = a1[1]-a2[1];
@@ -119,15 +165,16 @@ def intersection(a1, a2, b1, b2): #if parallel, return intersection closest to a
 
 def intersectionApprox(a1, a2, b1, b2):
     if parallelApprox(vector(a1,a2), vector(b1,b2)):
-        if areEqualApprox(b1,a1) or areEqualApprox(b1,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b1),normalizedv(a1,a2))):
-            if magnitudev(a1,b1)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b1),magnitudev(a1,a2)): #b1 between a1, a2 inclusive
-                return b1;
-        if areEqualApprox(b2,a1) or areEqualApprox(b2,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b2),normalizedv(a1,a2))):
-            if magnitudev(a1,b2)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b2),magnitudev(a1,a2)): #b2 between a1, a2 inclusive
+        if betweenInclusiveApprox(b1, a1, b2):
+            return a1;
+        if betweenInclusiveApprox(a1, b1, a2):
+            if betweenInclusiveApprox(a1, b2, b1):
                 return b2;
-        if areEqualApprox(a1,b1) or areEqualApprox(a1,b2) or (b1!=b2 and areEqualApprox(normalizedv(b1,a1),normalizedv(b1,b2))):
-            if magnitudev(b1,a1)<magnitudev(b1,b2) or math.isclose(magnitudev(b1,a1),magnitudev(b1,b2)): #a1 between b1, b2 inclusive
-                return a1;
+            return b1;
+        if betweenInclusiveApprox(a1, b2, a2):
+            if betweenInclusiveApprox(a1, b1, b2):
+                return b1;
+            return b2;
         return (None, None);
     else: #Ax+By+C=0, Dx+Ey+F=0
         A = a1[1]-a2[1];
@@ -152,15 +199,12 @@ def intersectionApprox(a1, a2, b1, b2):
 
 def intersect(a1, a2, b1, b2):
     if parallel(vector(a1,a2), vector(b1,b2)):
-        if b1==a1 or b1==a2 or (a1!=a2 and normalizedv(a1,b1)==normalizedv(a1,a2)):
-            if magnitudev(a1,b1)<=magnitudev(a1,a2): #b1 between a1, a2 inclusive
-                return True;
-        if b2==a1 or b2==a2 or (a1!=a2 and normalizedv(a1,b2)==normalizedv(a1,a2)):
-            if magnitudev(a1,b2)<=magnitudev(a1,a2): #b2 between a1, a2 inclusive
-                return True;
-        if a1==b1 or a1==b2 or (b1!=b2 and normalizedv(b1,a1)==normalizedv(b1,b2)):
-            if magnitudev(b1,a1)<=magnitudev(b1,b2): #a1 between b1, b2 inclusive
-                return True;
+        if betweenInclusive(a1, b1, a2):
+            return True;
+        if betweenInclusive(a1, b2, a2):
+            return True;
+        if betweenInclusive(b1, a1, b2):
+            return True;
         return False;
     cha1a2b1 = chirality(a1,a2,b1);
     cha1a2b2 = chirality(a1,a2,b2);
@@ -178,15 +222,12 @@ def intersect(a1, a2, b1, b2):
 
 def intersectApprox(a1, a2, b1, b2):
     if parallelApprox(vector(a1,a2), vector(b1,b2)):
-        if areEqualApprox(b1,a1) or areEqualApprox(b1,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b1),normalizedv(a1,a2))):
-            if magnitudev(a1,b1)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b1),magnitudev(a1,a2)): #b1 between a1, a2 inclusive
-                return True;
-        if areEqualApprox(b2,a1) or areEqualApprox(b2,a2) or (a1!=a2 and areEqualApprox(normalizedv(a1,b2),normalizedv(a1,a2))):
-            if magnitudev(a1,b2)<magnitudev(a1,a2) or math.isclose(magnitudev(a1,b2),magnitudev(a1,a2)): #b2 between a1, a2 inclusive
-                return True;
-        if areEqualApprox(a1,b1) or areEqualApprox(a1,b2) or (b1!=b2 and areEqualApprox(normalizedv(b1,a1),normalizedv(b1,b2))):
-            if magnitudev(b1,a1)<magnitudev(b1,b2) or math.isclose(magnitudev(b1,a1),magnitudev(b1,b2)): #a1 between b1, b2 inclusive
-                return True;
+        if betweenInclusiveApprox(a1, b1, a2):
+            return True;
+        if betweenInclusiveApprox(a1, b2, a2):
+            return True;
+        if betweenInclusiveApprox(b1, a1, b2):
+            return True;
         return False;
     cha1a2b1 = chirality(a1,a2,b1);
     cha1a2b2 = chirality(a1,a2,b2);
@@ -249,7 +290,7 @@ def intersectPolygonIndexNearestExclusiveApprox(polygon, a1, a2): #returns index
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersectApprox(vertex, vnext, a1, a2):
-            it = intersection(vertex, vnext, a1, a2);
+            it = intersectionApprox(vertex, vnext, a1, a2);
             if not areEqualApprox(it, a1):
                 d = distance(it, a1);
                 if d <= minDistance:
@@ -294,6 +335,8 @@ def angle(p1, p2, p3): #from p1 to p3, radians
     a = distance(p1, p2);
     b = distance(p3, p2);
     c = distance(p1, p3);
+    #if a==0 or b==0:
+    #    return 0;
     cos = (a*a+b*b-c*c)/(2*a*b);
     if math.isclose(cos, 1):
         cos = 1;
@@ -337,7 +380,13 @@ def collinear(A, B, C):
     if parallel(v1, v2):
         return True;
     return False;
-            
+
+def collinearApprox(A, B, C):
+    v1 = vector(A, B);
+    v2 = vector(B, C);
+    if parallelApprox(v1, v2):
+        return True;
+    return False;
     
 def polygonCoordsClockwise(n, xCenter, yCenter, radius): #fix pixel offset ========
     dtheta = 2*math.pi/n;
@@ -462,10 +511,11 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
             log = "continue polygon";
         else:
             log = "change polygon";
-        print(cVertex, cPolygon[0], log, oIndex, intersectIndexExclusive);
+        print(pVertex, cVertex, nVertex, log, cPolygonIndex, oIndex, intersectIndexExclusive);
         if oIndex != -1: #intersection at vertex
             onIndex = (oIndex+1)%len(oPolygon);
             onVertex = oPolygon[onIndex];
+            print(onVertex);
             if angle(pVertex, cVertex, nVertex) > angle(pVertex, cVertex, onVertex): #change Polygon
                 if areEqualApprox(onVertex, ans[0]):
                     break;
