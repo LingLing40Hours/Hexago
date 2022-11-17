@@ -472,27 +472,25 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
     cPolygonIndex = 0;
     
     for i, vertex in enumerate(p1): #search polygon1
-        if not containsExclusive(p2, vertex):
-            if not containsInclusive(p2, vertex) or findIndexApprox(vertex, p2) != -1:
-                cIndex = i;
-                cVertex = vertex;
-                pVertex = p1[i-1];
-                cPolygon = p1;
-                oPolygon = p2;
-                cPolygonIndex = 1;
-                break;
+        if not containsInclusiveApprox(p2, vertex) or findIndexApprox(p2, vertex) != -1:
+            cIndex = i;
+            cVertex = vertex;
+            pVertex = p1[i-1];
+            cPolygon = p1;
+            oPolygon = p2;
+            cPolygonIndex = 1;
+            break;
 
     if cPolygonIndex==0: #outer vertex not found in polygon1
         for i, vertex in enumerate(p2): #search polygon2
-            if not containsExclusive(p1, vertex):
-                if not containsInclusive(p1, vertex) or findIndexApprox(vertex, p1) != -1:
-                    cIndex = i;
-                    cVertex = vertex;
-                    pVertex = p2[i-1];
-                    cPolygon = p2;
-                    oPolygon = p1;
-                    cPolygonIndex = 2;
-                    break;
+            if not containsInclusiveApprox(p1, vertex) or findIndexApprox(p1, vertex) != -1:
+                cIndex = i;
+                cVertex = vertex;
+                pVertex = p2[i-1];
+                cPolygon = p2;
+                oPolygon = p1;
+                cPolygonIndex = 2;
+                break;
     
     #walk around current polygon, switch polygon at intersection
     ans = [cVertex];
@@ -662,6 +660,31 @@ def containsExclusive(polygon, point): #polygon vertices counterclockwise
         return True;
     return False;
 
+def containsExclusiveApprox(polygon, point): #polygon vertices counterclockwise
+    if not containsConvexExclusiveApprox(polygon, point):
+        return False;
+
+    #cut all concave vertices, check if each triangle contains point
+    vcoords = polygon.copy();
+    done = False;
+    while not done: #vcoords not convex
+        done = True;
+        for i, vertex in enumerate(vcoords):
+            vprev = vcoords[i-1];
+            vnext = vcoords[(i+1)%len(polygon)];
+            if isClockwise(vprev, vertex, vnext): #concavity at vertex
+                triangle = [vprev, vnext, vertex];
+                if containsConvexInclusiveApprox(triangle, point):
+                    return False;
+                #remove concavity
+                vcoords.pop(i);
+                done = False;
+                break;
+    #vcoords now convex
+    if containsConvexExclusiveApprox(vcoords, point):
+        return True;
+    return False;
+
 def containsInclusive(polygon, point): #polygon vertices counterclockwise
     if not containsConvexInclusive(convexed(polygon), point):
         return False;
@@ -719,6 +742,14 @@ def containsConvexExclusive(polygon, point): #polygon convex, vertices countercl
         vertex = polygon[i];
         vnext = polygon[(i+1)%len(polygon)];
         if not isCounterclockwise(vertex, vnext, point):
+            return False;
+    return True;
+
+def containsConvexExclusiveApprox(polygon, point): #all points in polygon not on or close to boundary
+    for i in range(len(polygon)):
+        vertex = polygon[i];
+        vnext = polygon[(i+1)%len(polygon)];
+        if isClockwiseApprox(vertex, vnext, point):
             return False;
     return True;
 
