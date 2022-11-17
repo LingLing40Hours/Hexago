@@ -38,7 +38,7 @@ def makeOptimalMove(vertexCoords):
                         parallelogram = [anchor, extendinate, target, coordinate];
                     else:
                         parallelogram = [anchor, coordinate, target, extendinate];
-                    newVertexCoords = reduced(merged(vertexCoords, parallelogram));
+                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram));
                     nArea = area(newVertexCoords);
                     if nArea > maxArea:
                         ans = newVertexCoords;
@@ -65,7 +65,7 @@ def optimalMove(vertexCoords):
                         parallelogram = [anchor, extendinate, target, coordinate];
                     else:
                         parallelogram = [anchor, coordinate, target, extendinate];
-                    newVertexCoords = reduced(merged(vertexCoords, parallelogram));
+                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram));
                     nArea = area(newVertexCoords);
                     if nArea > maxArea:
                         ans = [coordinate, extendinate, anchor];
@@ -336,7 +336,7 @@ def angle(p1, p2, p3): #from p1 to p3, radians
     b = distance(p3, p2);
     c = distance(p1, p3);
     #if a==0 or b==0:
-    #    return 0;
+    #    return -1;
     cos = (a*a+b*b-c*c)/(2*a*b);
     if math.isclose(cos, 1):
         cos = 1;
@@ -458,8 +458,8 @@ def area(polygon): #shoelace formula
 def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
     #print(polygon1, polygon2);
     #reduce polygons
-    p1 = reduced(polygon1);
-    p2 = reduced(polygon2);
+    p1 = reducedApprox(polygon1);
+    p2 = reducedApprox(polygon2);
     
     #find an outer vertex as starting point
     cIndex = -1;
@@ -473,24 +473,26 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
     
     for i, vertex in enumerate(p1): #search polygon1
         if not containsExclusive(p2, vertex):
-            cIndex = i;
-            cVertex = vertex;
-            pVertex = p1[i-1];
-            cPolygon = p1;
-            oPolygon = p2;
-            cPolygonIndex = 1;
-            break;
+            if not containsInclusive(p2, vertex) or findIndexApprox(vertex, p2) != -1:
+                cIndex = i;
+                cVertex = vertex;
+                pVertex = p1[i-1];
+                cPolygon = p1;
+                oPolygon = p2;
+                cPolygonIndex = 1;
+                break;
 
     if cPolygonIndex==0: #outer vertex not found in polygon1
         for i, vertex in enumerate(p2): #search polygon2
             if not containsExclusive(p1, vertex):
-                cIndex = i;
-                cVertex = vertex;
-                pVertex = p2[i-1];
-                cPolygon = p2;
-                oPolygon = p1;
-                cPolygonIndex = 2;
-                break;
+                if not containsInclusive(p1, vertex) or findIndexApprox(vertex, p1) != -1:
+                    cIndex = i;
+                    cVertex = vertex;
+                    pVertex = p2[i-1];
+                    cPolygon = p2;
+                    oPolygon = p1;
+                    cPolygonIndex = 2;
+                    break;
     
     #walk around current polygon, switch polygon at intersection
     ans = [cVertex];
@@ -511,11 +513,10 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
             log = "continue polygon";
         else:
             log = "change polygon";
-        print(pVertex, cVertex, nVertex, log, cPolygonIndex, oIndex, intersectIndexExclusive);
+        print(cVertex, nVertex, log, cPolygonIndex, oIndex, intersectIndexExclusive);
         if oIndex != -1: #intersection at vertex
             onIndex = (oIndex+1)%len(oPolygon);
             onVertex = oPolygon[onIndex];
-            print(onVertex);
             if angle(pVertex, cVertex, nVertex) > angle(pVertex, cVertex, onVertex): #change Polygon
                 if areEqualApprox(onVertex, ans[0]):
                     break;
@@ -566,11 +567,21 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
 def reduced(polygon): #polygon valid (no self-intersections); combines collinear vertices, removes duplicate vertices
     ans = [];
     for i, cv in enumerate(polygon):
-        pv = polygon[i-1];
+        pv = ans[-1] if len(ans) else polygon[i-1];
         nv = polygon[(i+1)%len(polygon)];
-        if cv == pv:
+        if betweenExclusive(pv, cv, nv) or cv==pv:
             continue;
-        if intersect(pv, nv, cv, cv):
+        ans.append(cv);
+    return ans;
+
+def reducedApprox(polygon): #polygon valid (no self-intersections); combines collinearApprox vertices, removes areEqualApprox vertices
+    ans = [];
+    for i, cv in enumerate(polygon):
+        pv = ans[-1] if len(ans) else polygon[i-1];
+        nv = polygon[(i+1)%len(polygon)];
+        if areEqualApprox(cv, pv): #don't include cv
+            continue;
+        if betweenInclusiveApprox(pv, cv, nv) and not areEqualApprox(cv, nv):
             continue;
         ans.append(cv);
     return ans;
@@ -678,6 +689,31 @@ def containsInclusive(polygon, point): #polygon vertices counterclockwise
         return True;
     return False;
 
+def containsInclusiveApprox(polygon, point): #polygon vertices counterclockwise
+    if not containsConvexInclusiveApprox(convexed(polygon), point):
+        return False;
+
+    #cut all concave vertices, check if each triangle contains point
+    vcoords = polygon.copy();
+    done = False;
+    while not done:
+        done = True;
+        for i, vertex in enumerate(vcoords):
+            vprev = vcoords[i-1];
+            vnext = vcoords[(i+1)%len(vcoords)];
+            if isClockwise(vprev, vertex, vnext): #concavity at vertex
+                triangle = [vprev, vnext, vertex];
+                if containsConvexInclusiveApprox(triangle, point) and not bewteenInclusiveApprox(vprev, point, vertex) and not betweenInclusiveApprox(vertex, point, vnext):
+                    return False;
+                #point not in concavity, cut concavity away
+                vcoords.pop(i);
+                done = False;
+                break;
+    #vcoords now convex
+    if containsConvexInclusiveApprox(vcoords, point):
+        return True;
+    return False;
+
 def containsConvexExclusive(polygon, point): #polygon convex, vertices counterclockwise
     for i in range(len(polygon)):
         vertex = polygon[i];
@@ -691,6 +727,14 @@ def containsConvexInclusive(polygon, point): #polygon convex, vertices countercl
         vertex = polygon[i];
         vnext = polygon[(i+1)%len(polygon)];
         if isClockwise(vertex, vnext, point):
+            return False;
+    return True;
+
+def containsConvexInclusiveApprox(polygon, point): #polygon convex, vertices counterclockwise
+    for i in range(len(polygon)):
+        vertex = polygon[i];
+        vnext =  polygon[(i+1)%len(polygon)];
+        if not isCounterclockwiseApprox(vertex, vnext, point):
             return False;
     return True;
 
@@ -708,6 +752,18 @@ def isCounterclockwise(A, B, C):
     if dth > math.pi:
         return True;
     return False;
+
+def isCounterclockwiseApprox(A, B, C):
+    BA = vector(B, A);
+    BC = vector(B, C);
+    if parallelApprox(BA, BC):
+        return True;
+    argBA = math.atan2(BA[1], BA[0]);
+    argBC = math.atan2(BC[1], BC[0]);
+    dth = (argBC-argBA+2*math.pi)%(2*math.pi);
+    if dth > math.pi or math.isclose(dth, math.pi):
+        return True;
+    return False;
     
 def isClockwise(A, B, C):
     BA = vector(B, A);
@@ -718,6 +774,18 @@ def isClockwise(A, B, C):
     argBC = math.atan2(BC[1], BC[0]);
     dth = (argBC-argBA+2*math.pi)%(2*math.pi);
     if dth < math.pi:
+        return True;
+    return False;
+
+def isClockwiseApprox(A, B, C):
+    BA = vector(B, A);
+    BC = vector(B, C);
+    if parallelApprox(BA, BC):
+        return True;
+    argBA = math.atan2(BA[1], BA[0]);
+    argBC = math.atan2(BC[1], BC[0]);
+    dth = (argBC-argBA+2*math.pi)%(2*math.pi);
+    if dth < math.pi or math.isclose(dth, math.pi):
         return True;
     return False;
 
