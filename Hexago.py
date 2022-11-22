@@ -29,8 +29,11 @@ def makeOptimalMove(vertexCoords):
             mv = normalized(v);
             extendinate = summed(coordinate, mv);
             for anchorIndex in range(len(vertexCoords)):
-                if anchorIndex!=coordinateIndex and anchorIndex!=neighborIndex:
+                if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
                     print("    A:", anchorIndex);
+                    debug = False;
+                    if coordinateIndex==-1 and neighborIndex==5 and anchorIndex==2:
+                        debug = True;
                     anchor = vertexCoords[anchorIndex];
                     target = vector(anchor, summed(summed(coordinate, coordinate), mv));
                     parallelogram = [];
@@ -38,7 +41,7 @@ def makeOptimalMove(vertexCoords):
                         parallelogram = [anchor, extendinate, target, coordinate];
                     else:
                         parallelogram = [anchor, coordinate, target, extendinate];
-                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram));
+                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, debug));
                     nArea = area(newVertexCoords);
                     if nArea > maxArea:
                         ans = newVertexCoords;
@@ -65,7 +68,7 @@ def optimalMove(vertexCoords):
                         parallelogram = [anchor, extendinate, target, coordinate];
                     else:
                         parallelogram = [anchor, coordinate, target, extendinate];
-                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram));
+                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, False));
                     nArea = area(newVertexCoords);
                     if nArea > maxArea:
                         ans = [coordinate, extendinate, anchor];
@@ -112,21 +115,20 @@ def betweenInclusive(A, B, C):
     return False;
 
 def betweenExclusive(A, B, C):
-    if not collinear(A, B, C):
+    if B==A or B==C:
         return False;
-    if B[0] > min(A[0], C[0]) and B[0] < max(A[0], C[0]):
-        if B[1] > min(A[1], C[1]) and B[1] < max(A[1], C[1]):
-            return True;
-    return False;
+    return betweenInclusive(A, B, C);
 
 def betweenInclusiveApprox(A, B, C):
     if not collinearApprox(A, B, C):
         return False;
     if areEqualApprox(B, A) or areEqualApprox(B, C):
         return True;
-    if B[0] > min(A[0], C[0]) and B[0] < max(A[0], C[0]):
-        if B[1] > min(A[1], C[1]) and B[1] < max(A[1], C[1]):
-            return True;
+    if B[0] > min(A[0], C[0]) or math.isclose(B[0], min(A[0], C[0])):
+        if B[0] < max(A[0], C[0]) or math.isclose(B[0], max(A[0], C[0])):
+            if B[1] > min(A[1], C[1]) or math.isclose(B[1], min(A[1], C[1])):
+                if B[1] < max(A[1], C[1]) or math.isclose(B[1], max(A[1], C[1])):
+                    return True;
     return False;
 
 def intersection(a1, a2, b1, b2): #if parallel, return intersection closest to a1
@@ -163,7 +165,7 @@ def intersection(a1, a2, b1, b2): #if parallel, return intersection closest to a
             y = -A/B*x-C/B;
         return (x, y);
 
-def intersectionApprox(a1, a2, b1, b2):
+def intersectionApprox(a1, a2, b1, b2): #if parallel, return intersection closest to a1
     if parallelApprox(vector(a1,a2), vector(b1,b2)):
         if betweenInclusiveApprox(b1, a1, b2):
             return a1;
@@ -185,13 +187,13 @@ def intersectionApprox(a1, a2, b1, b2):
         F = -E*b1[1]-D*b1[0];
         x=0;
         y=0;
-        if B==0:
+        if math.isclose(B, 0, abs_tol=1e-9):
             x = -C/A;
-        elif E==0:
+        elif math.isclose(E, 0, abs_tol=1e-9):
             x = -F/D;
         else:
             x = (F/E-C/B)/(A/B-D/E);
-        if B==0:
+        if math.isclose(B, 0, abs_tol=1e-9):
             y = -D/E*x-F/E;
         else:
             y = -A/B*x-C/B;
@@ -242,6 +244,20 @@ def intersectApprox(a1, a2, b1, b2):
     if cha1a2b2!=-1 and cha1a2b1!=1 and chb1b2a1!=-1 and chb1b2a2!=1:
         return True;
     return False;
+
+def touchPolygonIndex(polygon, a1): #returns index of starting vertex of touching edge
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if betweenExclusive(vertex, a1, vnext) or vertex==a1:
+            return i;
+    return -1;
+
+def touchPolygonIndexApprox(polygon, a1): #returns index of starting vertex of approximate touching edge
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if betweenInclusiveApprox(vertex, a1, vnext) and not areEqualApprox(a1, vnext):
+            return i;
+    return -1;
             
 def intersectPolygon(polygon, a1, a2): #check if segment intersects any edge
     for i, vertex in enumerate(polygon):
@@ -263,7 +279,20 @@ def intersectPolygonIndexNearest(polygon, a1, a2): #returns index of starting ve
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersect(vertex, vnext, a1, a2):
-            it = intersection(vertex, vnext, a1, a2);
+            it = intersection(a1, a2, vertex, vnext);
+            d = distance(it, a1);
+            if d <= minDistance:
+                minDistance = d;
+                ans = i;
+    return ans;
+
+def intersectPolygonIndexNearestApprox(polygon, a1, a2): #returns index of starting vertex of approximate intersecting edge closest to a1
+    ans = -1;
+    minDistance = distance(a1, a2);
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersectApprox(vertex, vnext, a1, a2):
+            it = intersectionApprox(a1, a2, vertex, vnext);
             d = distance(it, a1);
             if d <= minDistance:
                 minDistance = d;
@@ -276,7 +305,7 @@ def intersectPolygonIndexNearestExclusive(polygon, a1, a2): #returns index of st
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersect(vertex, vnext, a1, a2):
-            it = intersection(vertex, vnext, a1, a2);
+            it = intersection(a1, a2, vertex, vnext);
             if it != a1:
                 d = distance(it, a1);
                 if d <= minDistance:
@@ -290,7 +319,7 @@ def intersectPolygonIndexNearestExclusiveApprox(polygon, a1, a2): #returns index
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersectApprox(vertex, vnext, a1, a2):
-            it = intersectionApprox(vertex, vnext, a1, a2);
+            it = intersectionApprox(a1, a2, vertex, vnext);
             if not areEqualApprox(it, a1):
                 d = distance(it, a1);
                 if d <= minDistance:
@@ -304,9 +333,10 @@ def intersectPolygonIndexNearestExclusives(polygon, a1, a2): #returns index of s
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersect(vertex, vnext, a1, a2):
-            it = intersection(vertex, vnext, a1, a2);
-            if it != a1 and it != a2:
-                d = distance(it, a1);
+            it1 = intersection(a1, a2, vertex, vnext);
+            it2 = intersection(a2, a1, vertex, vnext);
+            if it1 != a1 and it2 != a2:
+                d = distance(it1, a1);
                 if d <= minDistance:
                     minDistance = d;
                     ans = i;
@@ -455,11 +485,15 @@ def area(polygon): #shoelace formula
     ans = abs(ans);
     return ans;
 
-def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
-    #print(polygon1, polygon2);
-    #reduce polygons
-    p1 = reducedApprox(polygon1);
-    p2 = reducedApprox(polygon2);
+def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwise
+    if debug:
+        print(polygon1, '\n');
+        print(polygon2, '\n');
+    #reduce polygons?
+    #p1 = reducedApprox(polygon1);
+    #p2 = reducedApprox(polygon2);
+    p1 = polygon1.copy();
+    p2 = polygon2.copy();
     
     #find an outer vertex as starting point
     cIndex = -1;
@@ -502,20 +536,35 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
     done = False;
     while not done:
         intersectIndexExclusive = intersectPolygonIndexNearestExclusiveApprox(oPolygon, cVertex, nVertex);
+        touchIndex = touchPolygonIndexApprox(oPolygon, cVertex);
         internextIndex = (intersectIndexExclusive+1)%len(oPolygon);
-        oIndex = findIndexApprox(oPolygon, cVertex);
-        log = "";
-        if oIndex != -1:
-            log = "at vertex";
-        elif intersectIndexExclusive==-1:
-            log = "continue polygon";
-        else:
-            log = "change polygon";
-        print(cVertex, nVertex, log, cPolygonIndex, oIndex, intersectIndexExclusive);
+        touchnextIndex = (touchIndex+1)%len(oPolygon);
+        #oIndex = findIndexApprox(oPolygon, cVertex);
+        if debug:
+            log = "";
+            '''
+            if oIndex != -1:
+                if angle(pVertex, cVertex, nVertex) >= angle(pVertex, cVertex, oPolygon[(oIndex+1)%len(oPolygon)]):
+                    log = "at vertex chan.";
+                else:
+                    log = "at vertex cont.";'''
+            if touchIndex != -1 and not isZeroApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex])) and angle(pVertex, cVertex, oPolygon[touchnextIndex]) < angle(pVertex, cVertex, nVertex):
+                log = "change polygon S"
+            elif intersectIndexExclusive!=-1:
+                log = "change polygon M";
+            else:
+                log = "continue polygon";
+            print(f"{f'cv: ({round(cVertex[0],2):.2f}, {round(cVertex[1],2):.2f})':<20}"\
+                  f"{f'nv: ({round(nVertex[0],2):.2f}, {round(nVertex[1],2):.2f})':<20}"\
+                  f"{f'pv: ({round(pVertex[0],2):.2f}, {round(pVertex[1],2):.2f})':<20}"\
+                  f"{f'tnv: ({round(oPolygon[touchnextIndex][0],2):.2f}, {round(oPolygon[touchnextIndex][1],2):.2f})':<21}"\
+                  f"{log:<20}cpi: {cPolygonIndex:<5}ii: {intersectIndexExclusive:<6}ci: {cIndex:<6}ti: {touchIndex:<6}");
+            print("\t", cVertex);
+        '''
         if oIndex != -1: #intersection at vertex
             onIndex = (oIndex+1)%len(oPolygon);
             onVertex = oPolygon[onIndex];
-            if angle(pVertex, cVertex, nVertex) > angle(pVertex, cVertex, onVertex): #change Polygon
+            if angle(pVertex, cVertex, nVertex) >= angle(pVertex, cVertex, onVertex): #change Polygon
                 if areEqualApprox(onVertex, ans[0]):
                     break;
                 ans.append(onVertex);
@@ -525,7 +574,7 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
                 cVertex = oPolygon[cIndex];
                 nVertex = oPolygon[nIndex];
                 cPolygon, oPolygon = oPolygon, cPolygon;
-                cPolygonIndex = 1 if cPolygonIndex==2 else 1;
+                cPolygonIndex = 1 if cPolygonIndex==2 else 2;
             else: #continue on cPolygon
                 if areEqualApprox(nVertex, ans[0]):
                     break;
@@ -534,17 +583,15 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
                 nIndex = (cIndex+1)%len(cPolygon);
                 pVertex = cVertex;
                 cVertex = nVertex;
-                nVertex = cPolygon[nIndex];
-        elif intersectIndexExclusive == -1: #continue on cPolygon
-            if areEqualApprox(nVertex, ans[0]):
-                break;
-            ans.append(nVertex);
-            cIndex = nIndex;
-            nIndex = (cIndex+1)%len(cPolygon);
-            pVertex = cVertex;
-            cVertex = nVertex;
-            nVertex = cPolygon[nIndex];
-        else: #change polygon
+                nVertex = cPolygon[nIndex];'''
+        if touchIndex != -1 and not isZeroApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex])) and angle(pVertex, cVertex, oPolygon[touchnextIndex]) < angle(pVertex, cVertex, nVertex): #change polygon stay
+            tnVertex = oPolygon[touchnextIndex];
+            cIndex = touchIndex;
+            nIndex = touchnextIndex;
+            nVertex = tnVertex;
+            cPolygon, oPolygon = oPolygon, cPolygon;
+            cPolygonIndex = 1 if cPolygonIndex==2 else 2;
+        elif intersectIndexExclusive != -1: #change polygon move
             nVertex = intersectionApprox(cVertex, nVertex, oPolygon[intersectIndexExclusive], oPolygon[internextIndex]);
             if areEqualApprox(nVertex, ans[0]):
                 break;
@@ -559,7 +606,16 @@ def merged(polygon1, polygon2): #polygons valid, vertices counterclockwise
             cVertex = nVertex;
             nVertex = oPolygon[nIndex];
             cPolygon, oPolygon = oPolygon, cPolygon;
-            cPolygonIndex = 1 if cPolygonIndex==2 else 1;
+            cPolygonIndex = 1 if cPolygonIndex==2 else 2;
+        else: #continue on cPolygon
+            if areEqualApprox(nVertex, ans[0]):
+                break;
+            ans.append(nVertex);
+            cIndex = nIndex;
+            nIndex = (cIndex+1)%len(cPolygon);
+            pVertex = cVertex;
+            cVertex = nVertex;
+            nVertex = cPolygon[nIndex];
     return ans;
 
 def reduced(polygon): #polygon valid (no self-intersections); combines collinear vertices, removes duplicate vertices
@@ -597,7 +653,12 @@ def findIndexApprox(polygon, vertex):
     return -1;
 
 def areEqualApprox(v1, v2):
-    if math.isclose(v1[0], v2[0]) and math.isclose(v1[1], v2[1]):
+    if math.isclose(v1[0], v2[0], abs_tol=1e-9) and math.isclose(v1[1], v2[1], abs_tol=1e-9):
+        return True;
+    return False;
+
+def isZeroApprox(n):
+    if math.isclose(n, 0, abs_tol=1e-9):
         return True;
     return False;
 
@@ -726,7 +787,7 @@ def containsInclusiveApprox(polygon, point): #polygon vertices counterclockwise
             vnext = vcoords[(i+1)%len(vcoords)];
             if isClockwise(vprev, vertex, vnext): #concavity at vertex
                 triangle = [vprev, vnext, vertex];
-                if containsConvexInclusiveApprox(triangle, point) and not bewteenInclusiveApprox(vprev, point, vertex) and not betweenInclusiveApprox(vertex, point, vnext):
+                if containsConvexInclusiveApprox(triangle, point) and not betweenInclusiveApprox(vprev, point, vertex) and not betweenInclusiveApprox(vertex, point, vnext):
                     return False;
                 #point not in concavity, cut concavity away
                 vcoords.pop(i);
@@ -856,4 +917,8 @@ def perimeter(polygon):
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         ans += distance(vertex, vnext);
+    return ans;
+
+def rounded(tup, digits):
+    ans = tuple([round(i, digits) for i in tup]);
     return ans;
