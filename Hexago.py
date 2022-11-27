@@ -11,81 +11,123 @@ import copy
 def initBoard(polygon, width, height):
     im = Image.new(mode='RGBA', size=(width, height));
     #vertexCoords = polygonCoordsCounterclockwise(6,sSquare/2,sSquare/2,sHexagon); #hexagon
-    drawPolygon(im, polygon, 1);
+    drawPolygon(im, polygon, 1, 'black');
     return im;
 
 #enclosed regions are autofilled
-def makeOptimalMove(vertexCoords):
-    maxArea = area(vertexCoords);
-    ans = [];
-    for coordinateIndex in range(len(vertexCoords)):
-        print("C:", coordinateIndex);
-        coordinate = vertexCoords[coordinateIndex];
-        for neighborOffset in range(-1, 2, 2):
-            neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-            print("  N:", neighborIndex);
-            neighbor = vertexCoords[neighborIndex];
-            v = vector(neighbor, coordinate);
-            mv = normalized(v);
-            extendinate = summed(coordinate, mv);
-            for anchorIndex in range(len(vertexCoords)):
-                if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
-                    print("    A:", anchorIndex);
-                    debug = False;
-                    if coordinateIndex==-1 and neighborIndex==5 and anchorIndex==2:
-                        debug = True;
-                    anchor = vertexCoords[anchorIndex];
-                    target = vector(anchor, summed(summed(coordinate, coordinate), mv));
-                    parallelogram = [];
-                    if isClockwise(coordinate, extendinate, anchor):
-                        parallelogram = [anchor, extendinate, target, coordinate];
-                    else:
-                        parallelogram = [anchor, coordinate, target, extendinate];
-                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, debug));
-                    nArea = area(newVertexCoords);
-                    if nArea > maxArea:
-                        ans = newVertexCoords;
-                        maxArea = nArea;
-    vertexCoords[:] = ans;
+def makeOptimalMove(vertexCoords, variant):
+    p2 = optimalMove(vertexCoords, variant);
+    vertexCoords[:] = reducedApprox(merged(vertexCoords, p2, False));
+    return p2;
 
-def optimalMove(vertexCoords):
+def optimalMove(vertexCoords, variant):
     maxArea = area(vertexCoords);
-    ans = [(0,0),(0,0),(0,0)];
-    for coordinateIndex in range(len(vertexCoords)):
-        coordinate = vertexCoords[coordinateIndex];
-        for neighborOffset in [-1, 1]:
-            neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-            neighbor = vertexCoords[neighborIndex];
-            v = vector(neighbor, coordinate);
-            mv = normalized(v);
-            extendinate = summed(coordinate, mv);
-            for anchorIndex in range(len(vertexCoords)):
-                if not anchorIndex in [coordinateIndex, neighborIndex]:
-                    anchor = vertexCoords[anchorIndex];
-                    target = vector(anchor, summed(summed(coordinate, coordinate), mv));
-                    parallelogram = [];
-                    if isClockwise(coordinate, extendinate, anchor):
-                        parallelogram = [anchor, extendinate, target, coordinate];
-                    else:
-                        parallelogram = [anchor, coordinate, target, extendinate];
-                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, False));
-                    nArea = area(newVertexCoords);
-                    if nArea > maxArea:
-                        ans = [coordinate, extendinate, anchor];
-                        maxArea = nArea;
-    return ans;
+    p2 = [];
+    if variant=="e":
+        for coordinateIndex, coordinate in enumerate(vertexCoords):
+            for neighborOffset in [-1, 1]:
+                neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
+                neighbor = vertexCoords[neighborIndex];
+                v = vector(neighbor, coordinate);
+                mv = normalized(v);
+                extendinate = summed(coordinate, mv);
+                for anchorIndex, anchor in enumerate(vertexCoords):
+                    if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
+                        target = vector(anchor, summed(summed(coordinate, coordinate), mv));
+                        parallelogram = [];
+                        if isClockwise(coordinate, extendinate, anchor):
+                            parallelogram = [anchor, extendinate, target, coordinate];
+                        else:
+                            parallelogram = [anchor, coordinate, target, extendinate];
+                        newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, False));
+                        nArea = area(newVertexCoords);
+                        if nArea > maxArea:
+                            maxArea = nArea;
+                            p2 = parallelogram;
+    elif variant=="n":
+        for coordinateIndex, coordinate in enumerate(vertexCoords):
+            print(f"C: {coordinateIndex}");
+            for neighborOffset in[-1, 1]:
+                neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
+                print(f"\tN: {neighborIndex}");
+                neighbor = vertexCoords[neighborIndex];
+                for anchorIndex, anchor in enumerate(vertexCoords):
+                    if not anchorIndex in [coordinateIndex, neighborIndex]:
+                        print(f"\t\tA: {anchorIndex}");
+                        debug = False;
+                        if coordinateIndex==1 and neighborIndex==2 and anchorIndex==4:
+                            debug = True;
+                        target = vector(anchor, summed(neighbor, coordinate));
+                        parallelogram = [];
+                        if isClockwise(coordinate, neighbor, anchor):
+                            parallelogram = [anchor, neighbor, target, coordinate];
+                        else:
+                            parallelogram = [anchor, coordinate, target, neighbor];
+                        newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, debug));
+                        nArea = area(newVertexCoords);
+                        if nArea > maxArea:
+                            maxArea = nArea;
+                            p2 = parallelogram;
+    return p2;
     
                     
 def drawMove(C, E, A, vertexCoords, im):
     return;
+    
 
-def drawOptimalMoves(polygon, depth, scale, width, height):
+def drawOptimalMoves(polygon, depth, scale, width, height, variant):
     im = initBoard(scaled(polygon, scale), width, height);
     im.show();
     for i in range(depth):
-        makeOptimalMove(polygon);
-        drawPolygon(im, scaled(polygon, scale), 1);
+        makeOptimalMove(polygon, variant);
+        drawPolygon(im, scaled(polygon, scale), 1, 'black');
         im.show();
+
+def drawBlueberries(polygon, center, depth, scale, width, height, variant, fileName):
+    centeredgon = shifted(polygon, (-center[0], -center[1]));
+    centerOffset = (width/2.0, height/2.0);
+    for i in range(depth):
+        print(f"Drawing Blueberry {i}");
+        im = Image.new(mode='RGBA', size=(width, height));
+        drawPolygon(im, shifted(scaled(centergon, scale), centerOffset), 2, 'blue');
+        p2 = makeOptimalMove(centeredgon, variant);
+        drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
+        absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
+        if not os.path.exists(absoluteDir):
+            os.makedirs(absoluteDir);
+        im.save(f"{absoluteDir}/Blueberry {i}.png", "PNG");
+
+def drawBlueberry(polygon, center, depth, scale, width, height, variant, fileName):
+    centeredgon = shifted(polygon, (-center[0], -center[1]));
+    centerOffset = (width/2.0, height/2.0);
+    im = Image.new(mode='RGBA', size=(width, height));
+    for i in range(depth):
+        print(f"Drawing Blueberry {i}");
+        drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
+        p2 = makeOptimalMove(centeredgon, variant);
+        drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
+        absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
+        if not os.path.exists(absoluteDir):
+            os.makedirs(absoluteDir);
+        im.save(f"{absoluteDir}/Blueberry Whole {i}.png", "PNG");
+
+def centerApprox(polygon):
+    if len(polygon)==0:
+        return (None, None);
+    xMin = polygon[0][0];
+    xMax = xMin;
+    yMin = polygon[0][1];
+    yMax = yMin;
+    for i, vertex in enumerate(polygon):
+        if vertex[0]<xMin:
+            xMin = vertex[0];
+        elif vertex[0]>xMax:
+            xMax = vertex[0];
+        if vertex[1]<yMin:
+            yMin = vertex[1];
+        elif vertex[1]>yMax:
+            yMax = vertex[1];
+    return ((xMin+xMax)/2.0, (yMin+yMax)/2.0);
 
 def betweenInclusiveSlower(A, B, C):
     if not parallel(vector(A,B), vector(B,C)):
@@ -441,11 +483,11 @@ def polygonCoordsCounterclockwise(n, xCenter, yCenter, radius):
         answer.append((x, y));
     return answer;
 
-def drawPolygon(image, vertexCoords, thickness):
+def drawPolygon(image, vertexCoords, thickness, color):
     draw = ImageDraw.Draw(image);
     for i in range(len(vertexCoords)-1):
-        draw.line(vertexCoords[i] + vertexCoords[i+1], width=thickness, fill='black');
-    draw.line(vertexCoords[-1] + vertexCoords[0], width=thickness, fill='black');
+        draw.line(vertexCoords[i] + vertexCoords[i+1], width=thickness, fill=color);
+    draw.line(vertexCoords[-1] + vertexCoords[0], width=thickness, fill=color);
 
 def drawCircle(image, point, r, borderColor, borderWidth):
     draw = ImageDraw.Draw(image);
