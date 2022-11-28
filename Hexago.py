@@ -25,37 +25,43 @@ def optimalMove(vertexCoords, variant):
     p2 = [];
     if variant=="e":
         for coordinateIndex, coordinate in enumerate(vertexCoords):
+            #print(f"C: {coordinateIndex}");
             for neighborOffset in [-1, 1]:
                 neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
+                #print(f"\tN: {neighborIndex}");
                 neighbor = vertexCoords[neighborIndex];
                 v = vector(neighbor, coordinate);
                 mv = normalized(v);
                 extendinate = summed(coordinate, mv);
                 for anchorIndex, anchor in enumerate(vertexCoords):
                     if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
+                        #print(f"\t\tA: {anchorIndex}");
+                        debug = False;
+                        if coordinateIndex==-1 and neighborIndex==0 and anchorIndex==7:
+                            debug = True;
                         target = vector(anchor, summed(summed(coordinate, coordinate), mv));
                         parallelogram = [];
                         if isClockwise(coordinate, extendinate, anchor):
                             parallelogram = [anchor, extendinate, target, coordinate];
                         else:
                             parallelogram = [anchor, coordinate, target, extendinate];
-                        newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, False));
+                        newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, debug));
                         nArea = area(newVertexCoords);
                         if nArea > maxArea:
                             maxArea = nArea;
                             p2 = parallelogram;
     elif variant=="n":
         for coordinateIndex, coordinate in enumerate(vertexCoords):
-            print(f"C: {coordinateIndex}");
+            #print(f"C: {coordinateIndex}");
             for neighborOffset in[-1, 1]:
                 neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-                print(f"\tN: {neighborIndex}");
+                #print(f"\tN: {neighborIndex}");
                 neighbor = vertexCoords[neighborIndex];
                 for anchorIndex, anchor in enumerate(vertexCoords):
                     if not anchorIndex in [coordinateIndex, neighborIndex]:
-                        print(f"\t\tA: {anchorIndex}");
+                        #print(f"\t\tA: {anchorIndex}");
                         debug = False;
-                        if coordinateIndex==1 and neighborIndex==2 and anchorIndex==4:
+                        if coordinateIndex==-1 and neighborIndex==2 and anchorIndex==6:
                             debug = True;
                         target = vector(anchor, summed(neighbor, coordinate));
                         parallelogram = [];
@@ -336,7 +342,7 @@ def intersectPolygonIndexNearestApprox(polygon, a1, a2): #returns index of start
         if intersectApprox(vertex, vnext, a1, a2):
             it = intersectionApprox(a1, a2, vertex, vnext);
             d = distance(it, a1);
-            if d <= minDistance:
+            if d < minDistance or math.isclose(d, minDistance, abs_tol=1e-9):
                 minDistance = d;
                 ans = i;
     return ans;
@@ -364,7 +370,7 @@ def intersectPolygonIndexNearestExclusiveApprox(polygon, a1, a2): #returns index
             it = intersectionApprox(a1, a2, vertex, vnext);
             if not areEqualApprox(it, a1):
                 d = distance(it, a1);
-                if d <= minDistance:
+                if d < minDistance or math.isclose(d, minDistance, abs_tol=1e-9):
                     minDistance = d;
                     ans = i;
     return ans;
@@ -454,6 +460,8 @@ def collinear(A, B, C):
     return False;
 
 def collinearApprox(A, B, C):
+    if areEqualApprox(A, B) or areEqualApprox(A, C) or areEqualApprox(B, C):
+        return True;
     v1 = vector(A, B);
     v2 = vector(B, C);
     if parallelApprox(v1, v2):
@@ -590,7 +598,9 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                     log = "at vertex chan.";
                 else:
                     log = "at vertex cont.";'''
-            if touchIndex != -1 and not isZeroApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex])) and angle(pVertex, cVertex, oPolygon[touchnextIndex]) < angle(pVertex, cVertex, nVertex):
+            if touchIndex != -1 and not isZeroApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex])) and \
+            (lessExclusiveApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex]), angle(pVertex, cVertex, nVertex)) \
+            or (math.isclose(angle(pVertex, cVertex, oPolygon[touchnextIndex]), angle(pVertex, cVertex, nVertex), abs_tol=1e-9) and distance(cVertex, oPolygon[touchnextIndex])<distance(cVertex, nVertex))): #change polygon stay
                 log = "change polygon S"
             elif intersectIndexExclusive!=-1:
                 log = "change polygon M";
@@ -626,7 +636,9 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                 pVertex = cVertex;
                 cVertex = nVertex;
                 nVertex = cPolygon[nIndex];'''
-        if touchIndex != -1 and not isZeroApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex])) and angle(pVertex, cVertex, oPolygon[touchnextIndex]) < angle(pVertex, cVertex, nVertex): #change polygon stay
+        if touchIndex != -1 and not isZeroApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex])) and \
+        (lessExclusiveApprox(angle(pVertex, cVertex, oPolygon[touchnextIndex]), angle(pVertex, cVertex, nVertex)) \
+        or (math.isclose(angle(pVertex, cVertex, oPolygon[touchnextIndex]), angle(pVertex, cVertex, nVertex), abs_tol=1e-9) and distance(cVertex, oPolygon[touchnextIndex])<distance(cVertex, nVertex))): #change polygon stay
             tnVertex = oPolygon[touchnextIndex];
             cIndex = touchIndex;
             nIndex = touchnextIndex;
@@ -708,7 +720,11 @@ def swap(polygon1, polygon2): #doesn't work
     temp = polygon1.copy();
     polygon1 = polygon2.copy();
     polygon2 = temp;
-    
+
+def lessExclusiveApprox(a, b):
+    if a<b and not math.isclose(a, b, abs_tol=1e-9):
+        return True;
+    return False;
 
 def convexed(polygon): #vertices counterclockwise
     vcoords = polygon.copy();
