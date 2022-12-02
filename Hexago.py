@@ -544,6 +544,8 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
     #p2 = reducedApprox(polygon2);
     p1 = polygon1.copy();
     p2 = polygon2.copy();
+    rcp1 = reducedApprox(convexed(p1));
+    rcp2 = reducedApprox(convexed(p2));
     
     #find an outer vertex as starting point
     cIndex = -1;
@@ -556,10 +558,23 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
     cPolygonIndex = 0;
     
     for i, vertex in enumerate(p1): #search polygon1
-        if not containsInclusiveApprox(p2, vertex) or findIndexApprox(p2, vertex) != -1:
+        #if not containsInclusiveApprox(p2, vertex) or findIndexApprox(p2, vertex) != -1:
+        maybeSurrounded = containsExclusive(rcp1, vertex) or containsExclusive(rcp2, vertex) or (touchPolygonIndex(rcp2, vertex)!=-1 and findIndex(rcp2, vertex)==-1);
+        if not containsExclusiveApprox(p2, vertex) and not maybeSurrounded:
             cIndex = i;
             cVertex = vertex;
+            nIndex = (i+1)%len(p1);
+            nVertex = p1[nIndex];
+
+            #find pVertex (for angle only, may have wrong distance to cVertex)
+            tIndex = touchPolygonIndexApprox(p2, vertex);
             pVertex = p1[i-1];
+            if tIndex != -1:
+                if findIndexApprox(p2, vertex) and angle(p2[tIndex-1], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
+                    pVertex = p2[tIndex-1];
+                elif angle(p2[tIndex], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
+                    pVertex = p2[tIndex];
+            
             cPolygon = p1;
             oPolygon = p2;
             cPolygonIndex = 1;
@@ -567,10 +582,23 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
 
     if cPolygonIndex==0: #outer vertex not found in polygon1
         for i, vertex in enumerate(p2): #search polygon2
-            if not containsInclusiveApprox(p1, vertex) or findIndexApprox(p1, vertex) != -1:
+            #if not containsInclusiveApprox(p1, vertex) or findIndexApprox(p1, vertex) != -1:
+            maybeSurrounded = containsExclusive(rcp1, vertex) or containsExclusive(rcp2, vertex) or (touchPolygonIndex(rcp1, vertex)!=-1 and findIndex(rcp1, vertex)==-1);
+            if not containsExclusiveApprox(p1, vertex) and not maybeSurrounded:
                 cIndex = i;
                 cVertex = vertex;
+                nIndex = (i+1)%len(p2);
+                nVertex = p2[nIndex];
+
+                #find pVertex
+                tIndex = touchPolygonIndexApprox(p1, vertex);
                 pVertex = p2[i-1];
+                if tIndex != -1:
+                    if findIndexApprox(p1, vertex) and angle(p1[tIndex-1], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
+                        pVertex = p1[tIndex-1];
+                    elif angle(p1[tIndex], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
+                        pVertex = p1[tIndex];
+                
                 cPolygon = p2;
                 oPolygon = p1;
                 cPolygonIndex = 2;
@@ -579,8 +607,8 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
     #walk around current polygon, switch polygon at intersection
     ans = [cVertex];
     
-    nIndex = (cIndex+1)%len(cPolygon);
-    nVertex = cPolygon[nIndex];
+    #nIndex = (cIndex+1)%len(cPolygon);
+    #nVertex = cPolygon[nIndex];
     #print(ans[0]);
 
     done = False;
