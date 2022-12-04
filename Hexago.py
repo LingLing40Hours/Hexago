@@ -39,19 +39,19 @@ def optimalMove(vertexCoords, variant):
     p2 = [];
     if variant=="e":
         for coordinateIndex, coordinate in enumerate(vertexCoords):
-            print(f"C: {coordinateIndex}");
+            #print(f"C: {coordinateIndex}");
             for neighborOffset in [-1, 1]:
                 neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-                print(f"\tN: {neighborIndex}");
+                #print(f"\tN: {neighborIndex}");
                 neighbor = vertexCoords[neighborIndex];
                 v = vector(neighbor, coordinate);
                 mv = normalized(v);
                 extendinate = summed(coordinate, mv);
                 for anchorIndex, anchor in enumerate(vertexCoords):
                     if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
-                        print(f"\t\tA: {anchorIndex}");
+                        #print(f"\t\tA: {anchorIndex}");
                         debug = False;
-                        if coordinateIndex==1 and neighborIndex==2 and anchorIndex==0:
+                        if coordinateIndex==-1 and neighborIndex==2 and anchorIndex==0:
                             debug = True;
                         target = vector(anchor, summed(summed(coordinate, coordinate), mv));
                         parallelogram = [];
@@ -180,6 +180,11 @@ def betweenExclusive(A, B, C):
     if B==A or B==C:
         return False;
     return betweenInclusive(A, B, C);
+
+def betweenExclusiveApprox(A, B, C):
+    if areEqualApprox(B, A) or areEqualApprox(B, C):
+        return False;
+    return betweenInclusiveApprox(A, B, C);
 
 def betweenInclusiveApprox(A, B, C):
     if not collinearApprox(A, B, C):
@@ -574,21 +579,27 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
     for i, vertex in enumerate(p1): #search polygon1
         #if not containsInclusiveApprox(p2, vertex) or findIndexApprox(p2, vertex) != -1:
         maybeSurrounded = containsExclusive(rcp1, vertex) or containsExclusive(rcp2, vertex) or (touchPolygonIndex(rcp2, vertex)!=-1 and findIndex(rcp2, vertex)==-1);
-        if not containsExclusiveApprox(p2, vertex) and not maybeSurrounded:
+        tIndex = touchPolygonIndexApprox(p2, vertex);
+        poVertex = (0, 0);
+        if tIndex != -1:
+            poVertex = p2[tIndex-1] if findIndexApprox(p2, vertex) else p2[tIndex];
+        pGood = tIndex==-1 or betweenExclusiveApprox(p1[i-1], poVertex, vertex) or betweenInclusiveApprox(poVertex, p1[i-1], vertex);
+        if not containsExclusiveApprox(p2, vertex) and not maybeSurrounded and pGood:
             cIndex = i;
             cVertex = vertex;
             nIndex = (i+1)%len(p1);
             nVertex = p1[nIndex];
 
             #find pVertex (for angle only, may have wrong distance to cVertex)
-            tIndex = touchPolygonIndexApprox(p2, vertex);
             pVertex = p1[i-1];
+            '''
+            tIndex = touchPolygonIndexApprox(p2, vertex);
             if tIndex != -1:
                 if findIndexApprox(p2, vertex) != -1:
                     if angle(p2[tIndex-1], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
                         pVertex = p2[tIndex-1];
                 elif angle(p2[tIndex], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
-                    pVertex = p2[tIndex];
+                    pVertex = p2[tIndex];'''
             
             cPolygon = p1;
             oPolygon = p2;
@@ -599,21 +610,27 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
         for i, vertex in enumerate(p2): #search polygon2
             #if not containsInclusiveApprox(p1, vertex) or findIndexApprox(p1, vertex) != -1:
             maybeSurrounded = containsExclusive(rcp1, vertex) or containsExclusive(rcp2, vertex) or (touchPolygonIndex(rcp1, vertex)!=-1 and findIndex(rcp1, vertex)==-1);
-            if not containsExclusiveApprox(p1, vertex) and not maybeSurrounded:
+            tIndex = touchPolygonIndexApprox(p1, vertex);
+            poVertex = (0, 0);
+            if tIndex != -1:
+                poVertex = p1[tIndex-1] if findIndexApprox(p1, vertex) else p1[tIndex];
+            pGood = tIndex==-1 or betweenExclusiveApprox(p2[i-1], poVertex, vertex) or betweenInclusiveApprox(poVertex, p2[i-1], vertex);
+            if not containsExclusiveApprox(p1, vertex) and not maybeSurrounded and pGood:
                 cIndex = i;
                 cVertex = vertex;
                 nIndex = (i+1)%len(p2);
                 nVertex = p2[nIndex];
 
                 #find pVertex
-                tIndex = touchPolygonIndexApprox(p1, vertex);
                 pVertex = p2[i-1];
+                '''
+                tIndex = touchPolygonIndexApprox(p1, vertex);
                 if tIndex != -1:
                     if findIndexApprox(p1, vertex) != -1:
                         if angle(p1[tIndex-1], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
                             pVertex = p1[tIndex-1];
                     elif angle(p1[tIndex], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
-                        pVertex = p1[tIndex];
+                        pVertex = p1[tIndex];'''
                 
                 cPolygon = p2;
                 oPolygon = p1;
@@ -715,6 +732,11 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             cVertex = nVertex;
             nVertex = cPolygon[nIndex];
     return ans;
+
+def mergedBash(polygon1, polygon2, debug): #add all intersections, remove all points which cannot belong to merged polygon, then link remaining vertices in correct order
+    p1 = reduced(polygon1);
+    p2 = reduced(polygon2);
+    
 
 def reduced(polygon): #polygon valid (no self-intersections); combines collinear vertices, removes duplicate vertices
     ans = [];
