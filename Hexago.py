@@ -6,6 +6,20 @@ import copy
 
 #variation 1 - anchor not in [coordinate, neighbor]
 #variation 2 - anchor not collinear with coordinate, neighbor
+#variation 3 - n-sided seed polygons, for n>=3
+
+#conservation of plumpness theorem - two convex polygons cannot merge to form a closed, empty region
+    #proof - let P be point in closed empty region
+    #each polygon must subtend less than 180deg of P
+    #contradiction
+
+#wedge theorem - true nVertex is always in wedge(cp[i-1], cv, op[ti-1]) or wedge(cp[i-1], cv, op[ti])
+    #proof - 
+
+#anaconda distribution tutorial
+#https://anaconda.cloud/getting-started-with-anaconda-distribution?source=osx_installer
+#getting started with anaconda
+#https://www.anaconda.com/products/distribution/installation-success
 
 
 def initBoard(polygon, width, height):
@@ -25,19 +39,19 @@ def optimalMove(vertexCoords, variant):
     p2 = [];
     if variant=="e":
         for coordinateIndex, coordinate in enumerate(vertexCoords):
-            #print(f"C: {coordinateIndex}");
+            print(f"C: {coordinateIndex}");
             for neighborOffset in [-1, 1]:
                 neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-                #print(f"\tN: {neighborIndex}");
+                print(f"\tN: {neighborIndex}");
                 neighbor = vertexCoords[neighborIndex];
                 v = vector(neighbor, coordinate);
                 mv = normalized(v);
                 extendinate = summed(coordinate, mv);
                 for anchorIndex, anchor in enumerate(vertexCoords):
                     if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
-                        #print(f"\t\tA: {anchorIndex}");
+                        print(f"\t\tA: {anchorIndex}");
                         debug = False;
-                        if coordinateIndex==-1 and neighborIndex==0 and anchorIndex==7:
+                        if coordinateIndex==1 and neighborIndex==2 and anchorIndex==0:
                             debug = True;
                         target = vector(anchor, summed(summed(coordinate, coordinate), mv));
                         parallelogram = [];
@@ -95,7 +109,7 @@ def drawBlueberries(polygon, center, depth, scale, width, height, variant, fileN
     for i in range(depth):
         print(f"Drawing Blueberry {i}");
         im = Image.new(mode='RGBA', size=(width, height));
-        drawPolygon(im, shifted(scaled(centergon, scale), centerOffset), 2, 'blue');
+        drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
         p2 = makeOptimalMove(centeredgon, variant);
         drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
         absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
@@ -414,7 +428,7 @@ def angle(p1, p2, p3): #from p1 to p3, radians
     b = distance(p3, p2);
     c = distance(p1, p3);
     #if a==0 or b==0:
-    #    return -1;
+    #    print(p1, p2, p3);
     cos = (a*a+b*b-c*c)/(2*a*b);
     if math.isclose(cos, 1):
         cos = 1;
@@ -570,8 +584,9 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             tIndex = touchPolygonIndexApprox(p2, vertex);
             pVertex = p1[i-1];
             if tIndex != -1:
-                if findIndexApprox(p2, vertex) and angle(p2[tIndex-1], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
-                    pVertex = p2[tIndex-1];
+                if findIndexApprox(p2, vertex) != -1:
+                    if angle(p2[tIndex-1], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
+                        pVertex = p2[tIndex-1];
                 elif angle(p2[tIndex], cVertex, nVertex)<angle(p1[i-1], cVertex, nVertex):
                     pVertex = p2[tIndex];
             
@@ -594,8 +609,9 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                 tIndex = touchPolygonIndexApprox(p1, vertex);
                 pVertex = p2[i-1];
                 if tIndex != -1:
-                    if findIndexApprox(p1, vertex) and angle(p1[tIndex-1], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
-                        pVertex = p1[tIndex-1];
+                    if findIndexApprox(p1, vertex) != -1:
+                        if angle(p1[tIndex-1], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
+                            pVertex = p1[tIndex-1];
                     elif angle(p1[tIndex], cVertex, nVertex)<angle(p2[i-1], cVertex, nVertex):
                         pVertex = p1[tIndex];
                 
@@ -603,13 +619,13 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                 oPolygon = p1;
                 cPolygonIndex = 2;
                 break;
+    #print(f"pVertex1: {pVertex}");
     
     #walk around current polygon, switch polygon at intersection
     ans = [cVertex];
     
     #nIndex = (cIndex+1)%len(cPolygon);
     #nVertex = cPolygon[nIndex];
-    #print(ans[0]);
 
     done = False;
     while not done:
