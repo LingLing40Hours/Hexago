@@ -1,0 +1,2 @@
+class ComplexPolygonError(Exception):
+    pass;

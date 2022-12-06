@@ -1,8 +1,8 @@
-import cv2
 import os
 from PIL import Image, ImageDraw
 import math
 import copy
+from exceptions import *
 
 #variation 1 - anchor not in [coordinate, neighbor]
 #variation 2 - anchor not collinear with coordinate, neighbor
@@ -75,7 +75,7 @@ def optimalMove(vertexCoords, variant):
                     if not anchorIndex in [coordinateIndex, neighborIndex]:
                         #print(f"\t\tA: {anchorIndex}");
                         debug = False;
-                        if coordinateIndex==-1 and neighborIndex==2 and anchorIndex==6:
+                        if coordinateIndex==-1 and neighborIndex==5 and anchorIndex==6:
                             debug = True;
                         target = vector(anchor, summed(neighbor, coordinate));
                         parallelogram = [];
@@ -435,9 +435,9 @@ def angle(p1, p2, p3): #from p1 to p3, radians
     #if a==0 or b==0:
     #    print(p1, p2, p3);
     cos = (a*a+b*b-c*c)/(2*a*b);
-    if math.isclose(cos, 1):
+    if cos > 1:
         cos = 1;
-    elif math.isclose(cos, -1):
+    elif cos < -1:
         cos = -1;
     ans = math.acos(cos);
     if isCounterclockwise(p1, p2, p3):
@@ -672,7 +672,7 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                   f"{f'pv: ({round(pVertex[0],2):.2f}, {round(pVertex[1],2):.2f})':<20}"\
                   f"{f'tnv: ({round(oPolygon[touchnextIndex][0],2):.2f}, {round(oPolygon[touchnextIndex][1],2):.2f})':<21}"\
                   f"{log:<20}cpi: {cPolygonIndex:<5}ii: {intersectIndexExclusive:<6}ci: {cIndex:<6}ti: {touchIndex:<6}");
-            print("\t", cVertex);
+            #print("\t", cVertex);
         '''
         if oIndex != -1: #intersection at vertex
             onIndex = (oIndex+1)%len(oPolygon);
@@ -731,12 +731,24 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             pVertex = cVertex;
             cVertex = nVertex;
             nVertex = cPolygon[nIndex];
+    if not isSimple(ans):
+        raise ComplexPolygonError("merge returned a complex polygon");
     return ans;
 
 def mergedBash(polygon1, polygon2, debug): #add all intersections, remove all points which cannot belong to merged polygon, then link remaining vertices in correct order
     p1 = reduced(polygon1);
     p2 = reduced(polygon2);
-    
+
+def isSimple(polygon):
+    for i, a1 in enumerate(polygon):
+        a2 = polygon[(i+1)%len(polygon)];
+        for j in range(i+2, len(polygon)):
+            if j!=len(polygon)-1 or i!=0:
+                b1 = polygon[j];
+                b2 = polygon[(j+1)%len(polygon)];
+                if intersect(a1, a2, b1, b2):
+                    return False;
+    return True;
 
 def reduced(polygon): #polygon valid (no self-intersections); combines collinear vertices, removes duplicate vertices
     ans = [];
