@@ -1,8 +1,7 @@
 from Hexago import *
 
-hexagon =  polygonCoordsClockwise(6, 0, 0, 1);
-drawBlueberry()
-
+hexagon =  polygonCoordsCounterclockwise(6, 0, 0, 1);
+drawBlueberry(hexagon, (0,0), 16,16,4800,4800,'e','H-4800-e');
 
 '''#isSimple
 p1=[(0,0),(0,1)]

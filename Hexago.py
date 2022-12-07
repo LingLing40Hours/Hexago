@@ -51,7 +51,7 @@ def optimalMove(vertexCoords, variant):
                     if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
                         #print(f"\t\tA: {anchorIndex}");
                         debug = False;
-                        if coordinateIndex==-1 and neighborIndex==2 and anchorIndex==0:
+                        if coordinateIndex==-1 and neighborIndex==0 and anchorIndex==4:
                             debug = True;
                         target = vector(anchor, summed(summed(coordinate, coordinate), mv));
                         parallelogram = [];
@@ -555,6 +555,8 @@ def area(polygon): #shoelace formula
     return ans;
 
 def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwise
+    if len(polygon1)==0 or len(polygon2)==0:
+        raise EmptyPolygonError();
     if debug:
         print(polygon1, '\n');
         print(polygon2, '\n');
@@ -589,8 +591,6 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             cVertex = vertex;
             nIndex = (i+1)%len(p1);
             nVertex = p1[nIndex];
-
-            #find pVertex (for angle only, may have wrong distance to cVertex)
             pVertex = p1[i-1];
             '''
             tIndex = touchPolygonIndexApprox(p2, vertex);
@@ -620,8 +620,6 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                 cVertex = vertex;
                 nIndex = (i+1)%len(p2);
                 nVertex = p2[nIndex];
-
-                #find pVertex
                 pVertex = p2[i-1];
                 '''
                 tIndex = touchPolygonIndexApprox(p1, vertex);
@@ -636,7 +634,8 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                 oPolygon = p1;
                 cPolygonIndex = 2;
                 break;
-    #print(f"pVertex1: {pVertex}");
+    if cPolygonIndex == 0:
+        raise InitialVertexNotFoundError();
     
     #walk around current polygon, switch polygon at intersection
     ans = [cVertex];
@@ -672,7 +671,6 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                   f"{f'pv: ({round(pVertex[0],2):.2f}, {round(pVertex[1],2):.2f})':<20}"\
                   f"{f'tnv: ({round(oPolygon[touchnextIndex][0],2):.2f}, {round(oPolygon[touchnextIndex][1],2):.2f})':<21}"\
                   f"{log:<20}cpi: {cPolygonIndex:<5}ii: {intersectIndexExclusive:<6}ci: {cIndex:<6}ti: {touchIndex:<6}");
-            #print("\t", cVertex);
         '''
         if oIndex != -1: #intersection at vertex
             onIndex = (oIndex+1)%len(oPolygon);
@@ -732,7 +730,7 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             cVertex = nVertex;
             nVertex = cPolygon[nIndex];
     if not isSimple(ans):
-        raise ComplexPolygonError("merge returned a complex polygon");
+        raise ComplexPolygonError(ans);
     return ans;
 
 def mergedBash(polygon1, polygon2, debug): #add all intersections, remove all points which cannot belong to merged polygon, then link remaining vertices in correct order
@@ -746,7 +744,7 @@ def isSimple(polygon):
             if j!=len(polygon)-1 or i!=0:
                 b1 = polygon[j];
                 b2 = polygon[(j+1)%len(polygon)];
-                if intersect(a1, a2, b1, b2):
+                if intersectApprox(a1, a2, b1, b2):
                     return False;
     return True;
 
