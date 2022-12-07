@@ -106,30 +106,40 @@ def drawOptimalMoves(polygon, depth, scale, width, height, variant):
 def drawBlueberries(polygon, center, depth, scale, width, height, variant, fileName):
     centeredgon = shifted(polygon, (-center[0], -center[1]));
     centerOffset = (width/2.0, height/2.0);
+    #directory
+    absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
+    if not os.path.exists(absoluteDir):
+        os.makedirs(absoluteDir);
+    #seed polygon
+    im = Image.new(mode='RGBA', size=(width, height));
+    drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
+    im.save(f"{absoluteDir}/Blueberry {0}.png", "PNG");
     for i in range(depth):
-        print(f"Drawing Blueberry {i}");
+        print(f"Drawing Blueberry {i+1}");
         im = Image.new(mode='RGBA', size=(width, height));
         drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
         p2 = makeOptimalMove(centeredgon, variant);
         drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
-        absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
-        if not os.path.exists(absoluteDir):
-            os.makedirs(absoluteDir);
-        im.save(f"{absoluteDir}/Blueberry {i}.png", "PNG");
+        im.save(f"{absoluteDir}/Blueberry {i+1}.png", "PNG");
 
 def drawBlueberry(polygon, center, depth, scale, width, height, variant, fileName):
     centeredgon = shifted(polygon, (-center[0], -center[1]));
     centerOffset = (width/2.0, height/2.0);
     im = Image.new(mode='RGBA', size=(width, height));
+    #directory
+    absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
+    if not os.path.exists(absoluteDir):
+        os.makedirs(absoluteDir);
+    #seed polygon
+    drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
+    im.save(f"{absoluteDir}/Blueberry Whole {0}.png", "PNG");
+
     for i in range(depth):
-        print(f"Drawing Blueberry {i}");
-        drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
+        print(f"Drawing Blueberry {i+1}");
         p2 = makeOptimalMove(centeredgon, variant);
         drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
-        absoluteDir = f"/Users/admin/Desktop/Hexago/{fileName}";
-        if not os.path.exists(absoluteDir):
-            os.makedirs(absoluteDir);
-        im.save(f"{absoluteDir}/Blueberry Whole {i}.png", "PNG");
+        im.save(f"{absoluteDir}/Blueberry Whole {i+1}.png", "PNG");
+        drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'blue');
 
 def centerApprox(polygon):
     if len(polygon)==0:
