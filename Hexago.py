@@ -4,6 +4,8 @@ import math
 import copy
 from exceptions import *
 
+AREA = 1;
+PERIMETER = 2;
 #variation 1 - anchor not in [coordinate, neighbor]
 #variation 2 - anchor not collinear with coordinate, neighbor
 #variation 3 - n-sided seed polygons, for n>=3
@@ -29,65 +31,51 @@ def initBoard(polygon, width, height):
     return im;
 
 #enclosed regions are autofilled
-def makeOptimalMove(vertexCoords, variant):
-    p2 = optimalMove(vertexCoords, variant);
-    vertexCoords[:] = reducedApprox(merged(vertexCoords, p2, False));
+def makeOptimalMove(vertexCoords, variant, optimization):
+    p2 = optimalMove(vertexCoords, variant, optimization);
+    vertexCoords[:] = reducedApprox(merged(vertexCoords, p2, True, False));
     return p2;
 
-def optimalMove(vertexCoords, variant):
-    maxArea = area(vertexCoords);
+def optimalMove(vertexCoords, variant, optimization):
+    extremeValue = math.inf if optimization < 0 else -math.inf;
     p2 = [];
-    if variant=="e":
-        for coordinateIndex, coordinate in enumerate(vertexCoords):
-            #print(f"C: {coordinateIndex}");
-            for neighborOffset in [-1, 1]:
-                neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-                #print(f"\tN: {neighborIndex}");
-                neighbor = vertexCoords[neighborIndex];
+
+    for coordinateIndex, coordinate in enumerate(vertexCoords):
+        #print(f"C: {coordinateIndex}");
+        for neighborOffset in [-1, 1]:
+            neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
+            #print(f"\tN: {neighborIndex}");
+            neighbor = vertexCoords[neighborIndex];
+            hinge = neighbor;
+
+            if variant=='e':
                 v = vector(neighbor, coordinate);
                 mv = normalized(v);
                 extendinate = summed(coordinate, mv);
-                for anchorIndex, anchor in enumerate(vertexCoords):
-                    if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
-                        #print(f"\t\tA: {anchorIndex}");
-                        debug = False;
-                        if coordinateIndex==-1 and neighborIndex==0 and anchorIndex==4:
-                            debug = True;
-                        target = vector(anchor, summed(summed(coordinate, coordinate), mv));
-                        parallelogram = [];
-                        if isClockwise(coordinate, extendinate, anchor):
-                            parallelogram = [anchor, extendinate, target, coordinate];
-                        else:
-                            parallelogram = [anchor, coordinate, target, extendinate];
-                        newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, debug));
-                        nArea = area(newVertexCoords);
-                        if nArea > maxArea:
-                            maxArea = nArea;
-                            p2 = parallelogram;
-    elif variant=="n":
-        for coordinateIndex, coordinate in enumerate(vertexCoords):
-            #print(f"C: {coordinateIndex}");
-            for neighborOffset in[-1, 1]:
-                neighborIndex = (coordinateIndex+neighborOffset)%len(vertexCoords);
-                #print(f"\tN: {neighborIndex}");
-                neighbor = vertexCoords[neighborIndex];
-                for anchorIndex, anchor in enumerate(vertexCoords):
-                    if not anchorIndex in [coordinateIndex, neighborIndex]:
-                        #print(f"\t\tA: {anchorIndex}");
-                        debug = False;
-                        if coordinateIndex==-1 and neighborIndex==5 and anchorIndex==6:
-                            debug = True;
-                        target = vector(anchor, summed(neighbor, coordinate));
-                        parallelogram = [];
-                        if isClockwise(coordinate, neighbor, anchor):
-                            parallelogram = [anchor, neighbor, target, coordinate];
-                        else:
-                            parallelogram = [anchor, coordinate, target, neighbor];
-                        newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, debug));
-                        nArea = area(newVertexCoords);
-                        if nArea > maxArea:
-                            maxArea = nArea;
-                            p2 = parallelogram;
+                hinge = extendinate;
+
+            for anchorIndex, anchor in enumerate(vertexCoords):
+                if not anchorIndex in [coordinateIndex, neighborIndex]:
+                #if not collinearApprox(coordinate, extendinate, vertexCoords[anchorIndex]):
+                    #print(f"\t\tA: {anchorIndex}");
+                    debug = False;
+                    if coordinateIndex==-1 and neighborIndex==0 and anchorIndex==4:
+                        debug = True;
+
+                    target = vector(anchor, summed(hinge, coordinate));
+                    if isClockwise(coordinate, hinge, anchor):
+                        parallelogram = [anchor, hinge, target, coordinate];
+                    else:
+                        parallelogram = [anchor, coordinate, target, hinge];
+                    newVertexCoords = reducedApprox(merged(vertexCoords, parallelogram, True, debug));
+                    nValue = 0;
+                    if abs(optimization)==AREA:
+                        nValue = area(newVertexCoords);
+                    elif abs(optimization)==PERIMETER:
+                        nValue = perimeter(newVertexCoords);
+                    if (optimization > 0) == (nValue > extremeValue):
+                        extremeValue = nValue;
+                        p2 = parallelogram;
     return p2;
     
                     
@@ -95,15 +83,15 @@ def drawMove(C, E, A, vertexCoords, im):
     return;
     
 
-def drawOptimalMoves(polygon, depth, scale, width, height, variant):
+def drawOptimalMoves(polygon, depth, scale, width, height, variant, optimization):
     im = initBoard(scaled(polygon, scale), width, height);
     im.show();
     for i in range(depth):
-        makeOptimalMove(polygon, variant);
+        makeOptimalMove(polygon, variant, optimization);
         drawPolygon(im, scaled(polygon, scale), 1, 'black');
         im.show();
 
-def drawBlueberries(polygon, center, depth, scale, width, height, variant, fileName):
+def drawBlueberries(polygon, center, depth, scale, width, height, variant, optimization, fileName):
     centeredgon = shifted(polygon, (-center[0], -center[1]));
     centerOffset = (width/2.0, height/2.0);
     #directory
@@ -118,11 +106,11 @@ def drawBlueberries(polygon, center, depth, scale, width, height, variant, fileN
         print(f"Drawing Blueberry {i+1}");
         im = Image.new(mode='RGBA', size=(width, height));
         drawPolygon(im, shifted(scaled(centeredgon, scale), centerOffset), 2, 'blue');
-        p2 = makeOptimalMove(centeredgon, variant);
+        p2 = makeOptimalMove(centeredgon, variant, optimization);
         drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
         im.save(f"{absoluteDir}/Blueberry {i+1}.png", "PNG");
 
-def drawBlueberry(polygon, center, depth, scale, width, height, variant, fileName):
+def drawBlueberry(polygon, center, depth, scale, width, height, variant, optimization, fileName):
     centeredgon = shifted(polygon, (-center[0], -center[1]));
     centerOffset = (width/2.0, height/2.0);
     im = Image.new(mode='RGBA', size=(width, height));
@@ -136,7 +124,7 @@ def drawBlueberry(polygon, center, depth, scale, width, height, variant, fileNam
 
     for i in range(depth):
         print(f"Drawing Blueberry {i+1}");
-        p2 = makeOptimalMove(centeredgon, variant);
+        p2 = makeOptimalMove(centeredgon, variant, optimization);
         drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'green');
         im.save(f"{absoluteDir}/Blueberry Whole {i+1}.png", "PNG");
         drawPolygon(im, shifted(scaled(p2, scale), centerOffset), 2, 'blue');
@@ -242,7 +230,7 @@ def intersection(a1, a2, b1, b2): #if parallel, return intersection closest to a
             y = -A/B*x-C/B;
         return (x, y);
 
-def intersectionApprox(a1, a2, b1, b2): #if parallel, return intersection closest to a1
+def intersectionNearestApprox(a1, a2, b1, b2): #if parallel, return intersection closest to a1
     if parallelApprox(vector(a1,a2), vector(b1,b2)):
         if betweenInclusiveApprox(b1, a1, b2):
             return a1;
@@ -252,6 +240,40 @@ def intersectionApprox(a1, a2, b1, b2): #if parallel, return intersection closes
             return b1;
         if betweenInclusiveApprox(a1, b2, a2):
             if betweenInclusiveApprox(a1, b1, b2):
+                return b1;
+            return b2;
+        return (None, None);
+    else: #Ax+By+C=0, Dx+Ey+F=0
+        A = a1[1]-a2[1];
+        B = a2[0]-a1[0];
+        C = -B*a1[1]-A*a1[0];
+        D = b1[1]-b2[1];
+        E = b2[0]-b1[0];
+        F = -E*b1[1]-D*b1[0];
+        x=0;
+        y=0;
+        if math.isclose(B, 0, abs_tol=1e-9):
+            x = -C/A;
+        elif math.isclose(E, 0, abs_tol=1e-9):
+            x = -F/D;
+        else:
+            x = (F/E-C/B)/(A/B-D/E);
+        if math.isclose(B, 0, abs_tol=1e-9):
+            y = -D/E*x-F/E;
+        else:
+            y = -A/B*x-C/B;
+        return (x, y);
+
+def intersectionFarthestApprox(a1, a2, b1, b2): #if parallel, return intersection farthest from a1
+    if parallelApprox(vector(a1,a2), vector(b1,b2)):
+        if betweenInclusiveApprox(b1, a2, b2):
+            return a2;
+        if betweenInclusiveApprox(a1, b1, a2):
+            if betweenInclusiveApprox(a2, b2, b1):
+                return b2;
+            return b1;
+        if betweenInclusiveApprox(a1, b2, a2):
+            if betweenInclusiveApprox(a2, b1, b2):
                 return b1;
             return b2;
         return (None, None);
@@ -369,7 +391,7 @@ def intersectPolygonIndexNearestApprox(polygon, a1, a2): #returns index of start
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersectApprox(vertex, vnext, a1, a2):
-            it = intersectionApprox(a1, a2, vertex, vnext);
+            it = intersectionNearestApprox(a1, a2, vertex, vnext);
             d = distance(it, a1);
             if d < minDistance or math.isclose(d, minDistance, abs_tol=1e-9):
                 minDistance = d;
@@ -390,13 +412,14 @@ def intersectPolygonIndexNearestExclusive(polygon, a1, a2): #returns index of st
                     ans = i;
     return ans;
 
+#works for non-linear polygons, fails blueberry 8
 def intersectPolygonIndexNearestExclusiveApprox(polygon, a1, a2): #returns index of starting vertex of approximate intersecting edge closest to but not intersecting a1
     ans = -1;
     minDistance = distance(a1, a2);
     for i, vertex in enumerate(polygon):
         vnext = polygon[(i+1)%len(polygon)];
         if intersectApprox(vertex, vnext, a1, a2):
-            it = intersectionApprox(a1, a2, vertex, vnext);
+            it = intersectionNearestApprox(a1, a2, vertex, vnext);
             if not areEqualApprox(it, a1):
                 d = distance(it, a1);
                 if d < minDistance or math.isclose(d, minDistance, abs_tol=1e-9):
@@ -404,6 +427,30 @@ def intersectPolygonIndexNearestExclusiveApprox(polygon, a1, a2): #returns index
                     ans = i;
     return ans;
 
+def intersectPolygonIndexNearestAcutestExclusiveApprox(polygon, a1, a2): #~ closest to but not intersecting and forming most acute angle(a1, it, vnext)
+    ans = -1;
+    minDistance = distance(a1, a2);
+    minAngle = 2*math.pi;
+    for i, vertex in enumerate(polygon):
+        vnext = polygon[(i+1)%len(polygon)];
+        if intersectApprox(a1, a2, vertex, vnext):
+            itn = intersectionNearestApprox(a1, a2, vertex, vnext);
+            itf = intersectionFarthestApprox(a1, a2, vertex, vnext);
+            if not areEqualApprox(itn, a1) or not areEqualApprox(itf, a1): #exclusivity check
+                if not areEqualApprox(itn, vnext): #covered in next iteration; covered by
+                    d = distance(a1, itn);
+                    if d<minDistance or math.isclose(d, minDistance, abs_tol=1e-9):
+                        if not math.isclose(d, minDistance, abs_tol=1e-9): #closer intersection found, reset minimum angle
+                            minAngle = 2*math.pi;
+                        if areEqualApprox(itn, a1): #v(a1, a2) parallel to v(vertex, vnext)
+                            ang = math.pi if areEqualApprox(normalizedv(a1, a2), normalizedv(vertex, vnext)) else 2*math.pi;
+                        else:
+                            ang = angle(summed(a1, vector(a2, a1)), itn, vnext);
+                        if ang <= minAngle:
+                            minAngle = ang;
+                            minDistance = d;
+                            ans = i;
+    return ans;
 def intersectPolygonIndexNearestExclusives(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to a1 but not intersecting a1 or a2
     ans = -1;
     minDistance = distance(a1, a2);
@@ -419,7 +466,7 @@ def intersectPolygonIndexNearestExclusives(polygon, a1, a2): #returns index of s
                     ans = i;
     return ans;
 
-def intersectPolygonIndexNearestAcutest(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to and forming most acute angle with a1
+def intersectPolygonIndexNearestAcutest(polygon, a1, a2): #returns index of starting vertex of intersecting edge closest to and forming most acute angle with a1a2
     ans = -1;
     minDistance = distance(a1, a2);
     minAngle = 2*math.pi;
@@ -497,26 +544,26 @@ def collinearApprox(A, B, C):
         return True;
     return False;
     
-def polygonCoordsClockwise(n, xCenter, yCenter, radius): #fix pixel offset ========
+def polygonCoordsClockwise(n, center, radius): #fix pixel offset ========
     dtheta = 2*math.pi/n;
     theta = -math.pi/2 - dtheta/2;
     answer = [];
     for i in range(n):
         theta += dtheta;
-        x = xCenter + radius*math.cos(theta);
-        y = yCenter - radius*math.sin(theta);
+        x = center[0] + radius*math.cos(theta);
+        y = center[1] - radius*math.sin(theta);
         answer.append((x, y));
         #print(theta, answer[-1]);
     return answer;
 
-def polygonCoordsCounterclockwise(n, xCenter, yCenter, radius):
+def polygonCoordsCounterclockwise(n, center, radius):
     dtheta = 2*math.pi/n;
     theta = -math.pi/2 + dtheta*3/2;
     answer = [];
     for i in range(n):
         theta -= dtheta;
-        x = xCenter + radius*math.cos(theta);
-        y = yCenter - radius*math.sin(theta);
+        x = center[0] + radius*math.cos(theta);
+        y = center[1] - radius*math.sin(theta);
         answer.append((x, y));
     return answer;
 
@@ -564,12 +611,9 @@ def area(polygon): #shoelace formula
     ans = abs(ans);
     return ans;
 
-def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwise
+def merged(polygon1, polygon2, exhaustive, debug): #polygons valid, vertices counterclockwise
     if len(polygon1)==0 or len(polygon2)==0:
         raise EmptyPolygonError();
-    if debug:
-        print(polygon1, '\n');
-        print(polygon2, '\n');
     #reduce polygons?
     #p1 = reducedApprox(polygon1);
     #p2 = reducedApprox(polygon2);
@@ -602,7 +646,7 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             nIndex = (i+1)%len(p1);
             nVertex = p1[nIndex];
             pVertex = p1[i-1];
-            '''
+            ''' #trying to find pVertex using nVertex
             tIndex = touchPolygonIndexApprox(p2, vertex);
             if tIndex != -1:
                 if findIndexApprox(p2, vertex) != -1:
@@ -645,6 +689,8 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
                 cPolygonIndex = 2;
                 break;
     if cPolygonIndex == 0:
+        print(polygon1)
+        print(polygon2)
         raise InitialVertexNotFoundError();
     
     #walk around current polygon, switch polygon at intersection
@@ -652,14 +698,22 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
     
     #nIndex = (cIndex+1)%len(cPolygon);
     #nVertex = cPolygon[nIndex];
+    if debug:
+        print(polygon1);
+        print(polygon2);
 
-    done = False;
-    while not done:
-        intersectIndexExclusive = intersectPolygonIndexNearestExclusiveApprox(oPolygon, cVertex, nVertex);
+    while True:
+        intersectIndexExclusive = intersectPolygonIndexNearestAcutestExclusiveApprox(oPolygon, cVertex, nVertex);
         touchIndex = touchPolygonIndexApprox(oPolygon, cVertex);
         internextIndex = (intersectIndexExclusive+1)%len(oPolygon);
         touchnextIndex = (touchIndex+1)%len(oPolygon);
         #oIndex = findIndexApprox(oPolygon, cVertex);
+
+        if touchIndex!=-1 and (areEqualApprox(pVertex, cVertex) or areEqualApprox(cVertex, oPolygon[touchnextIndex]) or areEqualApprox(pVertex, oPolygon[touchnextIndex])):
+            print(polygon1)
+            print(polygon2)
+            print(pVertex, cVertex, oPolygon[touchnextIndex]);
+            raise UndefinedAngleError();
         if debug:
             log = "";
             '''
@@ -715,7 +769,7 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             cPolygon, oPolygon = oPolygon, cPolygon;
             cPolygonIndex = 1 if cPolygonIndex==2 else 2;
         elif intersectIndexExclusive != -1: #change polygon move
-            nVertex = intersectionApprox(cVertex, nVertex, oPolygon[intersectIndexExclusive], oPolygon[internextIndex]);
+            nVertex = intersectionFarthestApprox(cVertex, nVertex, oPolygon[intersectIndexExclusive], oPolygon[internextIndex]);
             if areEqualApprox(nVertex, ans[0]):
                 break;
             ans.append(nVertex);
@@ -739,11 +793,16 @@ def merged(polygon1, polygon2, debug): #polygons valid, vertices counterclockwis
             pVertex = cVertex;
             cVertex = nVertex;
             nVertex = cPolygon[nIndex];
+        if count(ans, cVertex) > 2:
+            print(polygon1);
+            print(polygon2);
+            raise InitialVertexUnreachableError();
     if not isSimple(ans):
-        raise ComplexPolygonError(ans);
+        #raise ComplexPolygonError(ans);
+        pass; #allow linear intersections
     return ans;
 
-def mergedBash(polygon1, polygon2, debug): #add all intersections, remove all points which cannot belong to merged polygon, then link remaining vertices in correct order
+def mergedBash(polygon1, polygon2, exhaustive, debug): #add all intersections, remove all points which cannot belong to merged polygon, then link remaining vertices in correct order
     p1 = reduced(polygon1);
     p2 = reduced(polygon2);
 
@@ -797,8 +856,8 @@ def areEqualApprox(v1, v2):
         return True;
     return False;
 
-def isZeroApprox(n):
-    if math.isclose(n, 0, abs_tol=1e-9):
+def isZeroApprox(n): #abs_tol > 1.4901161193847656e-08 for Change Polygon Stay condition
+    if math.isclose(n, 0, abs_tol=1e-7):
         return True;
     return False;
 
@@ -1031,7 +1090,13 @@ def chirality(A, B, C): #clockwise 1, counterclockwise -1, collinear 0
     if isCounterclockwise(A, B, C):
         return -1;
     return 0;
-    
+
+def count(array, n):
+    ans = 0;
+    for i, d in enumerate(array):
+        if d==n:
+            ans += 1;
+    return ans;
 
 def vector(A, B):
     return (B[0]-A[0], B[1]-A[1]);

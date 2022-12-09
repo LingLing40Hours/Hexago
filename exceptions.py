@@ -6,3 +6,9 @@ class EmptyPolygonError(Exception):
 
 class InitialVertexNotFoundError(Exception):
     pass;
+
+class InitialVertexUnreachableError(Exception):
+    pass;
+
+class UndefinedAngleError(Exception):
+    pass;
